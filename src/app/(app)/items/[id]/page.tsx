@@ -11,6 +11,8 @@ import { HandToOfficeButton } from '@/components/HandToOfficeButton';
 import { CategoryArt, Icon } from '@/components/Icon';
 import { RejectMatchButton } from '@/components/MatchButtons';
 import { QrCode } from '@/components/QrCode';
+import { GoogleMap } from '@/components/GoogleMap';
+import { mapsLink } from '@/lib/geo';
 import { Callout, Head, KindBadge, Kv, placeDate, Stepper, Timeline } from '@/components/ui';
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +66,13 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             {!showDetails && <p className="meta" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="shield" size={15} />{t('Private details are hidden. The owner describes them when claiming.')}</p>}
             {isStaff && it.itemCode && <div style={{ marginTop: 10 }}><QrCode text={it.itemCode} size={96} /></div>}
           </div>
+          {it.lat != null && it.lng != null && (
+            <div className="box" style={{ marginBottom: 16 }}>
+              <h2 style={{ marginTop: 0 }}>{t('Where')}</h2>
+              <GoogleMap markers={[{ id: it.id, lat: it.lat, lng: it.lng, title: t(it.place) }]} height={220} />
+              <a href={mapsLink({ lat: it.lat, lng: it.lng })} target="_blank" rel="noopener noreferrer"><Icon name="map" size={15} /> {t('Open in Google Maps')}</a>
+            </div>
+          )}
           {it.status === 6 && (
             <Callout kind="red">
               <b>{t('Closed: {method}', { method: t(it.disposalMethod ?? '') })}</b>

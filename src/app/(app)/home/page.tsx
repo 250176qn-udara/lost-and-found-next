@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { getFinderTasks, getMemberNotices, getMyClaims, getMyItems } from '@/lib/data';
+import { getFinderTasks, getMemberNotices, getMyClaims, getMyItems, getUnthankedReturns } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
 import { getCommunityStats } from '@/lib/stats';
 import type { Item } from '@/lib/types';
@@ -13,9 +13,9 @@ const hasMatch = (i: Item) => i.status === 3 && i.kind === 'lost' && !!i.matched
 export default async function HomePage() {
   const { user } = await requirePage({ membership: true });
   const orgId = user.organizationId!;
-  const [t, mine, claims, community, notices, finderTasks] = await Promise.all([
+  const [t, mine, claims, community, notices, finderTasks, unthanked] = await Promise.all([
     getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getCommunityStats(orgId, user.id), getMemberNotices(user.id, orgId),
-    getFinderTasks(user.id, orgId),
+    getFinderTasks(user.id, orgId), getUnthankedReturns(user.id),
   ]);
   const open = mine.filter(i => i.status < 5);
 
@@ -25,6 +25,8 @@ export default async function HomePage() {
     actions.push({ icon: 'ticket', tone: 'green', title: 'Claim approved', item: c.itemTitle, help: 'Bring your photo ID and pickup code to the office.', label: 'Open pickup pass', href: '/my-items?tab=claims' });
   for (const f of finderTasks.filter(f => !f.handed_in_at))
     actions.push({ icon: 'hand', tone: 'amber', title: 'Someone has claimed the item you reported', item: f.title, help: 'Please take it to the office. Staff check the owner’s ID there and return it.', label: 'Hand over to the office', href: '/my-items?tab=found' });
+  for (const u of unthanked)
+    actions.push({ icon: 'hand', tone: 'green', title: 'You got your item back', item: u.title, help: 'Send a thank-you letter to the person who found it.', label: 'Write a thank-you letter', href: `/thanks/${u.claim_id}` });
   for (const i of mine.filter(hasMatch))
     actions.push({ icon: 'search', tone: '', title: 'Possible match found', item: i.title, help: 'Check if this is your item.', label: 'Review match', href: '/my-items' });
 

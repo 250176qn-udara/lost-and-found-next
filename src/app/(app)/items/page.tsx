@@ -4,7 +4,7 @@ import { STEPS, statusName } from '@/lib/constants';
 import { getLinkCandidates, getMatchPairs, getOrgItems } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
 import { scoreClass, scoreMatch } from '@/lib/match';
-import { CampusMap } from '@/components/CampusMap';
+import { GoogleMap } from '@/components/GoogleMap';
 import { CsvButton, PrintButton } from '@/components/ClientBits';
 import { CategoryArt } from '@/components/Icon';
 import { Empty } from '@/components/Illustration';
@@ -15,10 +15,10 @@ import { Head, href, KindBadge, LinkChips, placeDate } from '@/components/ui';
 const FILTERS = ['All', ...STEPS, 'Closed'];
 
 /** Every item in the organization: list, system matches, and map. Click an item for its full history. */
-export default async function ItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string; q?: string; zone?: string }> }) {
+export default async function ItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string; q?: string }> }) {
   const { user } = await requirePage({ roles: ['staff', 'admin'] });
   const orgId = user.organizationId!;
-  const [{ tab, f = 'All', q = '', zone = '' }, t, items, pairs] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getMatchPairs(orgId)]);
+  const [{ tab, f = 'All', q = '' }, t, items, pairs] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getMatchPairs(orgId)]);
   const tabs: TabDef[] = [
     { key: 'list', label: 'All items', icon: 'list', count: items.length },
     { key: 'matches', label: 'Matches', icon: 'search', count: pairs.length },
@@ -32,7 +32,7 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
       <Tabs tabs={tabs} current={cur} base="/items" t={t} />
       {cur === 'list' && <ItemList items={items} f={f} q={q} t={t} />}
       {cur === 'matches' && <Matches orgId={orgId} pairs={pairs} t={t} />}
-      {cur === 'map' && <ItemMap items={items} zone={zone} t={t} />}
+      {cur === 'map' && <ItemMap items={items} t={t} />}
     </>
   );
 }
@@ -90,7 +90,7 @@ async function Matches({ orgId, pairs, t }: { orgId: number; pairs: Awaited<Retu
       </div>
       {pairs.length === 0 && <Empty art="search" title={t('There are no open matches.')} />}
       {pairs.map(p => {
-        const { score, why } = scoreMatch({ place: p.lostPlace, date: p.lostDate }, { place: p.foundPlace, date: p.foundDate });
+        const { score, why } = scoreMatch({ place: p.lostPlace, date: p.lostDate, lat: p.lostLat, lng: p.lostLng }, { place: p.foundPlace, date: p.foundDate, lat: p.foundLat, lng: p.foundLng });
         return (
           <div className="box" key={p.lostId} style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -112,17 +112,17 @@ async function Matches({ orgId, pairs, t }: { orgId: number; pairs: Awaited<Retu
   );
 }
 
-function ItemMap({ items, zone, t }: { items: Items; zone: string; t: T }) {
+function ItemMap({ items, t }: { items: Items; t: T }) {
   const open = items.filter(i => i.kind === 'found' && i.status >= 2 && i.status <= 4);
-  const counts: Record<string, number> = {};
-  for (const i of open) counts[i.place] = (counts[i.place] ?? 0) + 1;
-  const list = open.filter(i => !zone || i.place === zone);
+  const lost = items.filter(i => i.kind === 'lost' && i.status < 5);
+  const pin = (i: Items[number], accent: boolean) => ({ id: i.id, lat: i.lat!, lng: i.lng!, title: i.title, sub: `${t(i.kind === 'lost' ? 'Lost' : 'Found')} · ${placeDate(i.place, i.date, t)}`, href: `/items/${i.id}`, accent });
+  const markers = [...open.filter(i => i.lat != null).map(i => pin(i, false)), ...lost.filter(i => i.lat != null).map(i => pin(i, true))];
   return (
     <>
-      <CampusMap counts={counts} t={t} selected={zone} linkFor={z => href('/items', { tab: 'map', zone: z === zone ? '' : z })} />
-      <p className="meta" style={{ marginTop: -6 }}>{t('Open found items by the place they were found. Tap a place to filter.')}</p>
+      <GoogleMap markers={markers} height={420} />
+      <p className="meta" style={{ marginTop: -6 }}>{t('Blue pins: found items waiting for owners. Orange pins: open lost reports. Tap a pin for details.')}</p>
       <div className="grid">
-        {list.map(i => (
+        {open.map(i => (
           <Link key={i.id} href={`/items/${i.id}`} className="box" style={{ display: 'flex', gap: 12, alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>
             <CategoryArt category={i.category} />
             <div><b style={{ color: 'var(--ink)' }}>{i.title}</b><div className="meta">{placeDate(i.place, i.date, t)}</div></div>

@@ -22,12 +22,18 @@ export type Me = {
 
 export type Organization = { id: number; name: string; type: string };
 
+/** A place on the organization's list, with an optional map pin. */
+export type Place = { id: number; name: string; lat: number | null; lng: number | null };
+
 export type Item = {
   id: number;
   kind: Kind | null;
   title: string;
   category: string;
   place: string;
+  /** Map pin (optional). */
+  lat?: number | null;
+  lng?: number | null;
   date: string | null;
   description: string | null;
   status: ItemStatus;
@@ -135,12 +141,15 @@ export type OrgItem = {
   createdAt: string;
   reporterName: string;
   daysKept: number | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 /** A lost report and the found item the system linked to it. */
 export type MatchPair = {
   lostId: number; lostTitle: string; lostPlace: string; lostDate: string | null; lostStatus: ItemStatus; ownerName: string;
   foundId: number; foundTitle: string; foundPlace: string; foundDate: string | null; foundCode: string | null;
+  lostLat: number | null; lostLng: number | null; foundLat: number | null; foundLng: number | null;
 };
 
 /** One line of the audit log, built from the timestamps the tables already keep. */

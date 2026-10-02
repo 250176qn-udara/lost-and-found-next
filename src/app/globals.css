@@ -336,6 +336,31 @@ nav a::before{display:none}
 .quick a b{display:block}
 .quick a span.meta{display:block}
 
+/* ---------- maps ---------- */
+.mapnote{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:20px;background:#f8fafc}
+.linkbtn{border:0;background:none;color:var(--brand);cursor:pointer;padding:0;font-size:inherit;text-decoration:underline}
+
+/* ---------- thank-you letters ---------- */
+.letter{position:relative;border-radius:16px;padding:26px 24px 20px;min-height:220px;box-shadow:var(--shadow-lg);border:1px solid var(--line);background:#fff;overflow:hidden}
+.letter::after{content:"";position:absolute;inset:8px;border-radius:12px;border:1px dashed currentColor;opacity:.25;pointer-events:none}
+.letter.classic{background:linear-gradient(160deg,#eff6ff,#fff 60%);color:#1d4ed8}
+.letter.sakura{background:linear-gradient(160deg,#fdf2f8,#fff 60%);color:#db2777}
+.letter.sunny{background:linear-gradient(160deg,#fffbeb,#fff 60%);color:#d97706}
+.letter.mint{background:linear-gradient(160deg,#ecfdf5,#fff 60%);color:#059669}
+.letter-art{display:block;margin-bottom:6px;animation:pop .5s cubic-bezier(.2,1.6,.4,1) both}
+.letter-title{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-size:26px;font-weight:700;color:inherit;margin-bottom:8px}
+.letter-body{color:var(--text);white-space:pre-line;margin:0 0 12px;font-size:15px;line-height:1.7}
+.letter-from{color:var(--mute);font-size:13px;text-align:right}
+.letter-gift{margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.8);border:1px solid var(--line);color:var(--ink);font-weight:600;font-size:14px}
+.cardpick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.letter.mini{min-height:74px;padding:10px;border-radius:12px;cursor:pointer;box-shadow:none;display:flex;align-items:flex-end;justify-content:center;font-weight:600;font-size:13px}
+.letter.mini.on{outline:3px solid currentColor;outline-offset:2px}
+.giftbox{margin-top:12px;padding:12px;border-radius:10px;background:#fff;border:1px dashed var(--line);text-align:center;position:relative;z-index:1}
+.giftcode{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;font-size:16px;letter-spacing:.06em;color:var(--ink);word-break:break-all;animation:rise .3s ease}
+.payjp-field{padding:11px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;min-height:44px}
+.fullinput{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;margin-bottom:8px}
+@media(max-width:600px){.cardpick{grid-template-columns:repeat(2,1fr)}}
+
 /* ---------- animations ---------- */
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fadein{from{opacity:0}to{opacity:1}}

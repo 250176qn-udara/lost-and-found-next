@@ -12,6 +12,9 @@ import { ActionError, getSession, loadState, requireAdmin, requireLogin, require
 import { all, exec, one, transaction } from '@/lib/db';
 import { DEV_DEFAULT_PASSWORD, DEV_LOGIN } from '@/lib/devlogin';
 import { DISPOSAL_METHODS } from '@/lib/constants';
+import { CARD_DESIGNS, GIFT_AMOUNTS, GIFT_BRANDS } from '@/lib/gifts';
+import { giftProviderReady, issueGiftCode } from '@/lib/gift-provider';
+import { charge, refund } from '@/lib/payjp';
 import { applyMatch, findMatchFor } from '@/lib/items';
 import { now } from '@/lib/session';
 import type { ItemStatus, Kind, Lang, ScannedItem } from '@/lib/types';
@@ -137,15 +140,16 @@ export async function reportItem(fd: FormData): Promise<Result<{ matched: boolea
     maxLen(desc, 2000, 'Description is too long.');
     const itemDate = parseDate(str(fd, 'item_date'));
     const photo = await parsePhoto(fd.get('photo'));
+    const pin = await parsePin(fd, orgId, place);
 
     // A found item is registered right away (status 2, with an item code), so everyone in the community
     // sees it in Found items and can claim it. Staff only record it again if it is brought to the office.
     const id = (await exec(
-      `INSERT INTO items (organization_id, reporter_id, kind, title, category, place, item_date, description, photo, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [orgId, uid, kind, title, category, place, itemDate, desc || null, photo, kind === 'found' ? 2 : 1])).insertId;
+      `INSERT INTO items (organization_id, reporter_id, kind, title, category, place, lat, lng, item_date, description, photo, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [orgId, uid, kind, title, category, place, pin.lat, pin.lng, itemDate, desc || null, photo, kind === 'found' ? 2 : 1])).insertId;
     if (kind === 'found') await assignCode(id);
-    const matched = await matchNewItem(orgId, kind, category, place, itemDate, id);
+    const matched = await matchNewItem(orgId, kind, category, place, itemDate, id, pin);
     refresh();
     return { matched };
   });
@@ -161,8 +165,8 @@ async function assignCode(id: number): Promise<string> {
 }
 
 /** Looks for a match for an item that has none yet and links both sides. Returns whether one was found. */
-async function matchNewItem(orgId: number, kind: Kind, category: string, place: string, date: string | null, id: number) {
-  const matchId = await findMatchFor(orgId, kind, category, place, date, id);
+async function matchNewItem(orgId: number, kind: Kind, category: string, place: string, date: string | null, id: number, pin: Pin) {
+  const matchId = await findMatchFor(orgId, kind, category, place, date, id, pin);
   if (matchId === null) return false;
   await applyMatch(id, matchId);
   await applyMatch(matchId, id);
@@ -184,6 +188,7 @@ export async function receiveAndRegister(fd: FormData): Promise<Result<{ itemCod
     maxLen(desc, 2000, 'Description is too long.');
     const itemDate = parseDate(str(fd, 'item_date'));
     const photo = await parsePhoto(fd.get('photo'));
+    const pin = await parsePin(fd, orgId, place);
 
     let id: number;
     let alreadyMatched = false;
@@ -195,20 +200,20 @@ export async function receiveAndRegister(fd: FormData): Promise<Result<{ itemCod
       if (item.received_at || item.status >= 5) throw new ActionError('This item was already received.');
       // Keep the member's photo unless staff attach a new one.
       await exec(
-        `UPDATE items SET title=?, category=?, place=?, item_date=?, description=?, shelf=?, finder_name=?,
+        `UPDATE items SET title=?, category=?, place=?, lat=?, lng=?, item_date=?, description=?, shelf=?, finder_name=?,
          status=GREATEST(status, 2), received_by=?, received_at=NOW()${photo === null ? '' : ', photo=?'} WHERE id=?`,
-        [title, category, place, itemDate, desc || null, shelf, finder || null, uid, ...(photo === null ? [] : [photo]), existingId]);
+        [title, category, place, pin.lat, pin.lng, itemDate, desc || null, shelf, finder || null, uid, ...(photo === null ? [] : [photo]), existingId]);
       id = existingId;
       alreadyMatched = item.matched_item_id !== null;
     } else {
       // Someone handed an item in at the office.
       id = (await exec(
-        `INSERT INTO items (organization_id, reporter_id, kind, title, category, place, item_date, description, photo, shelf, finder_name, status, received_by, received_at)
-         VALUES (?, ?, 'found', ?, ?, ?, ?, ?, ?, ?, ?, 2, ?, NOW())`,
-        [orgId, uid, title, category, place, itemDate, desc || null, photo, shelf, finder || null, uid])).insertId;
+        `INSERT INTO items (organization_id, reporter_id, kind, title, category, place, lat, lng, item_date, description, photo, shelf, finder_name, status, received_by, received_at)
+         VALUES (?, ?, 'found', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, ?, NOW())`,
+        [orgId, uid, title, category, place, pin.lat, pin.lng, itemDate, desc || null, photo, shelf, finder || null, uid])).insertId;
     }
     const code = await assignCode(id);
-    if (!alreadyMatched) await matchNewItem(orgId, 'found', category, place, itemDate, id);
+    if (!alreadyMatched) await matchNewItem(orgId, 'found', category, place, itemDate, id, pin);
     refresh();
     return { itemCode: code, shelf };
   });
@@ -357,6 +362,115 @@ export async function closeItem(itemId: number, method: string, note: string): P
     refresh();
     return {};
   });
+}
+
+type Pin = { lat: number | null; lng: number | null };
+
+/** Map pin from the form (lat/lng), or else the pin of the organization's place with that name. */
+async function parsePin(fd: FormData, orgId: number, place: string): Promise<Pin> {
+  const lat = Number(str(fd, 'lat')), lng = Number(str(fd, 'lng'));
+  if (str(fd, 'lat') !== '' && str(fd, 'lng') !== '') {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ActionError('The map pin is not valid.');
+    return { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 };
+  }
+  const p = await one<{ lat: string | null; lng: string | null }>('SELECT lat, lng FROM places WHERE organization_id = ? AND name = ?', [orgId, place]);
+  return { lat: p?.lat == null ? null : Number(p.lat), lng: p?.lng == null ? null : Number(p.lng) };
+}
+
+// ---------- places (admins) ----------
+
+function checkPlace(name: string, lat: number | null, lng: number | null) {
+  if (!name) throw new ActionError('Please enter the place name.');
+  maxLen(name, 100, 'Place is too long.');
+  if ((lat === null) !== (lng === null)) throw new ActionError('The map pin is not valid.');
+  if (lat !== null && (!Number.isFinite(lat) || !Number.isFinite(lng!) || Math.abs(lat) > 90 || Math.abs(lng!) > 180)) throw new ActionError('The map pin is not valid.');
+}
+
+export async function savePlace(id: number, rawName: string, lat: number | null, lng: number | null): Promise<Result> {
+  return handle(async () => {
+    const { orgId } = await requireAdmin();
+    const name = rawName.trim();
+    checkPlace(name, lat, lng);
+    if (await one('SELECT id FROM places WHERE organization_id = ? AND name = ? AND id <> ?', [orgId, name, id || 0]))
+      throw new ActionError('This place is already on the list.');
+    if (id) {
+      const p = await one<{ organization_id: number; name: string }>('SELECT organization_id, name FROM places WHERE id = ?', [id]);
+      if (!p || p.organization_id !== orgId) throw new ActionError('Place not found.');
+      await transaction(async conn => {
+        await exec('UPDATE places SET name = ?, lat = ?, lng = ? WHERE id = ?', [name, lat, lng, id], conn);
+        // Items that used the old name follow the rename.
+        if (p.name !== name) await exec('UPDATE items SET place = ? WHERE organization_id = ? AND place = ?', [name, orgId, p.name], conn);
+      });
+    } else {
+      await exec('INSERT INTO places (organization_id, name, lat, lng) VALUES (?, ?, ?, ?)', [orgId, name, lat, lng]);
+    }
+    refresh();
+    return {};
+  });
+}
+
+export async function deletePlace(id: number): Promise<Result> {
+  return handle(async () => {
+    const { orgId } = await requireAdmin();
+    const p = await one<{ organization_id: number }>('SELECT organization_id FROM places WHERE id = ?', [id]);
+    if (!p || p.organization_id !== orgId) throw new ActionError('Place not found.');
+    await exec('DELETE FROM places WHERE id = ?', [id]); // items keep their place name and pin
+    refresh();
+    return {};
+  });
+}
+
+// ---------- thank-you letters ----------
+
+/**
+ * The owner thanks the finder after the item was returned. The letter is required; an e-gift is optional and is
+ * paid by card through PAY.JP (the browser sends only a card token). If anything fails after the charge, it is refunded.
+ */
+export async function sendThanks(claimId: number, input: {
+  message: string; card: string; showName: boolean; gift?: { brand: string; amount: number; token: string } | null;
+}): Promise<Result> {
+  return handle(async () => {
+    const { uid } = await requireMember();
+    const message = input.message.trim();
+    if (!message) throw new ActionError('Please write a thank-you message.');
+    maxLen(message, 1000, 'The message is too long.');
+    if (!(CARD_DESIGNS as readonly string[]).includes(input.card)) throw new ActionError('Please choose a card.');
+    const c = await one<{ status: string; claimant_id: number; finder: number; title: string; item_code: string | null }>(
+      `SELECT c.status, c.claimant_id, i.reporter_id AS finder, i.title, i.item_code
+       FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?`, [claimId]);
+    if (!c || c.claimant_id !== uid) throw new ActionError('Claim not found.');
+    if (c.status !== 'returned') throw new ActionError('You can send thanks after you got the item back.');
+    if (c.finder === uid) throw new ActionError('Claim not found.');
+    if (await one('SELECT id FROM thanks WHERE claim_id = ?', [claimId])) throw new ActionError('You already sent thanks for this item.');
+
+    let chargeId: string | null = null, code: string | null = null, brand: string | null = null, amount: number | null = null;
+    const gift = input.gift ?? null;
+    if (gift) {
+      if (!GIFT_BRANDS.some(b => b.key === gift.brand) || !GIFT_AMOUNTS.includes(gift.amount)) throw new ActionError('Please choose a gift.');
+      if (!gift.token) throw new ActionError('Please enter your card.');
+      if (!giftProviderReady()) throw new ActionError('Gift cards are not available yet. You can still send the letter.');
+      brand = gift.brand; amount = gift.amount;
+      chargeId = await charge(amount, gift.token, `Thank-you gift ${brand} ¥${amount} for ${c.item_code ?? c.title}`);
+    }
+    try {
+      if (chargeId) code = await issueGiftCode(brand!, amount!);
+      await exec(
+        `INSERT INTO thanks (claim_id, from_user, to_user, message, card, show_name, gift_brand, gift_amount, gift_code, charge_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [claimId, uid, c.finder, message, input.card, input.showName ? 1 : 0, brand, amount, code, chargeId]);
+    } catch (e) {
+      if (chargeId) await refund(chargeId).catch(err => console.error('Refund failed for', chargeId, err));
+      throw e instanceof ActionError ? e : new ActionError('Your thanks could not be saved. Any payment was refunded.');
+    }
+    refresh();
+    return {};
+  });
+}
+
+/** The finder opened a letter. */
+export async function markThanksRead(id: number): Promise<void> {
+  const { uid } = await requireMember();
+  await exec('UPDATE thanks SET read_at = COALESCE(read_at, NOW()) WHERE id = ? AND to_user = ?', [id, uid]);
 }
 
 // ---------- matches ----------

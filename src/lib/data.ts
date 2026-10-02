@@ -1,9 +1,10 @@
 import 'server-only';
 import { all, one } from './db';
+import { num } from './geo';
 import { claimRow, itemRow } from './items';
 import type {
   Claim, ClaimEvent, ClaimStatus, Item, ItemDetail, ItemStatus, Kind, MatchPair, Member, MemberRow, Notice, Organization,
-  OrgItem, PendingRequest, QueueItem, Role,
+  OrgItem, PendingRequest, Place, QueueItem, Role,
 } from './types';
 
 // Read queries used by the pages. Callers check access first with requirePage().
@@ -14,7 +15,7 @@ export async function getOrganizations(): Promise<Organization[]> {
 
 export async function getMyItems(uid: number, orgId: number): Promise<Item[]> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT i.id, i.kind, i.title, i.category, i.place, i.item_date, i.description, i.status,
+    `SELECT i.id, i.kind, i.title, i.category, i.place, i.lat, i.lng, i.item_date, i.description, i.status,
             (i.photo IS NOT NULL) AS has_photo, i.created_at, i.item_code, i.shelf, i.received_at, i.handed_in_at,
             i.matched_item_id, m.title AS matched_title, m.place AS matched_place, m.item_date AS matched_date
      FROM items i LEFT JOIN items m ON m.id = i.matched_item_id
@@ -35,7 +36,7 @@ export async function getMyClaims(uid: number): Promise<Claim[]> {
 export async function getBrowseItems(orgId: number, category: string, uid = 0): Promise<Item[]> {
   const byCat = category !== '' && category !== 'All';
   const rows = await all<Record<string, unknown>>(
-    `SELECT id, title, category, place, item_date, status, (photo IS NOT NULL) AS has_photo, (reporter_id = ?) AS mine
+    `SELECT id, title, category, place, lat, lng, item_date, status, (photo IS NOT NULL) AS has_photo, (reporter_id = ?) AS mine
      FROM items WHERE organization_id = ? AND kind = 'found' AND status < 5 ${byCat ? 'AND category = ?' : ''}
      ORDER BY id DESC`, byCat ? [uid, orgId, category] : [uid, orgId]);
   return rows.map(r => ({ ...itemRow(r), mine: Boolean(Number(r.mine)) }));
@@ -100,7 +101,7 @@ const s = (v: unknown) => (v === null || v === undefined ? null : String(v));
 /** One item of the organization, or null. The page decides what the viewer may see. */
 export async function getItemDetail(id: number, orgId: number): Promise<ItemDetail | null> {
   const r = await one<Record<string, unknown>>(
-    `SELECT i.id, i.kind, i.title, i.category, i.place, i.item_date, i.description, i.status,
+    `SELECT i.id, i.kind, i.title, i.category, i.place, i.lat, i.lng, i.item_date, i.description, i.status,
             (i.photo IS NOT NULL) AS has_photo, i.item_code, i.shelf, i.finder_name, i.reporter_id,
             i.created_at, i.received_at, i.handed_in_at, i.matched_at, i.disposed_at, i.disposal_method, i.disposal_note,
             ru.name AS reporter_name, hu.name AS received_by_name,
@@ -139,7 +140,7 @@ export async function getClaimEvents(itemId: number): Promise<ClaimEvent[]> {
 
 export async function getOrgItems(orgId: number): Promise<OrgItem[]> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT i.id, i.kind, i.title, i.category, i.place, i.item_date, i.status, i.item_code, i.shelf, i.created_at,
+    `SELECT i.id, i.kind, i.title, i.category, i.place, i.lat, i.lng, i.item_date, i.status, i.item_code, i.shelf, i.created_at,
             u.name AS reporter_name, IF(i.received_at IS NULL, NULL, DATEDIFF(NOW(), i.received_at)) AS days_kept
      FROM items i JOIN users u ON u.id = i.reporter_id
      WHERE i.organization_id = ? ORDER BY i.id DESC`, [orgId]);
@@ -148,6 +149,7 @@ export async function getOrgItems(orgId: number): Promise<OrgItem[]> {
     date: s(r.item_date), status: Number(r.status) as ItemStatus, itemCode: s(r.item_code), shelf: s(r.shelf),
     createdAt: String(r.created_at), reporterName: String(r.reporter_name),
     daysKept: r.days_kept === null ? null : Number(r.days_kept),
+    lat: num(r.lat), lng: num(r.lng),
   }));
 }
 
@@ -158,6 +160,7 @@ export const atOffice = (i: OrgItem) => i.kind === 'found' && i.status >= 2 && i
 export async function getMatchPairs(orgId: number, uid?: number): Promise<(MatchPair & { claimStatus: ClaimStatus | null })[]> {
   const rows = await all<Record<string, unknown>>(
     `SELECT l.id AS lost_id, l.title AS lost_title, l.place AS lost_place, l.item_date AS lost_date, l.status AS lost_status,
+            l.lat AS lost_lat, l.lng AS lost_lng, f.lat AS found_lat, f.lng AS found_lng,
             u.name AS owner_name, f.id AS found_id, f.title AS found_title, f.place AS found_place,
             f.item_date AS found_date, f.item_code AS found_code,
             (SELECT c.status FROM claims c WHERE c.found_item_id = f.id AND c.claimant_id = l.reporter_id
@@ -172,6 +175,7 @@ export async function getMatchPairs(orgId: number, uid?: number): Promise<(Match
     lostStatus: Number(r.lost_status) as ItemStatus, ownerName: String(r.owner_name),
     foundId: Number(r.found_id), foundTitle: String(r.found_title), foundPlace: String(r.found_place),
     foundDate: s(r.found_date), foundCode: s(r.found_code), claimStatus: (r.claim_status as ClaimStatus) ?? null,
+    lostLat: num(r.lost_lat), lostLng: num(r.lost_lng), foundLat: num(r.found_lat), foundLng: num(r.found_lng),
   }));
 }
 
@@ -257,7 +261,13 @@ export async function getMemberNotices(uid: number, orgId: number): Promise<Noti
        FROM claims c JOIN items i ON i.id = c.found_item_id
        WHERE i.reporter_id = ? AND i.organization_id = ? AND c.claimant_id <> ?`, [uid, orgId, uid]),
   ]);
-  const list: Notice[] = [];
+  const letters = await all<{ id: number; title: string; created_at: string; gift_amount: number | null }>(
+    `SELECT t.id, i.title, t.created_at, t.gift_amount FROM thanks t
+     JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id WHERE t.to_user = ?`, [uid]);
+  const list: Notice[] = letters.map(l => ({
+    id: `ty${l.id}`, title: l.gift_amount ? 'You received a thank-you letter and a gift' : 'You received a thank-you letter',
+    text: l.title, at: l.created_at, href: '/my-items?tab=thanks',
+  }));
   for (const c of onMyFinds) {
     list.push({ id: `fc${c.id}`, title: 'Someone has claimed the item you reported', text: c.title, at: c.created_at, href: `/items/${c.item_id}` });
     if (c.status === 'approved' && !Number(c.at_office))
@@ -329,4 +339,48 @@ export async function getClaimsOnMyFinds(uid: number, orgId: number): Promise<Ma
   const map = new Map<number, ClaimStatus>();
   for (const r of rows) map.set(Number(r.item_id), r.status); // later rows win: returned > approved > pending
   return map;
+}
+
+// ---------- places ----------
+
+export async function getPlaces(orgId: number): Promise<Place[]> {
+  const rows = await all<Record<string, unknown>>('SELECT id, name, lat, lng FROM places WHERE organization_id = ? ORDER BY name', [orgId]);
+  return rows.map(r => ({ id: Number(r.id), name: String(r.name), lat: num(r.lat), lng: num(r.lng) }));
+}
+
+// ---------- thank-you letters ----------
+
+export type Thanks = {
+  id: number; claimId: number; itemTitle: string; message: string; card: string; fromName: string | null; toName: string;
+  giftBrand: string | null; giftAmount: number | null; giftCode: string | null; createdAt: string; readAt: string | null;
+};
+
+const thanksRow = (r: Record<string, unknown>): Thanks => ({
+  id: Number(r.id), claimId: Number(r.claim_id), itemTitle: String(r.item_title), message: String(r.message), card: String(r.card),
+  fromName: Number(r.show_name) ? String(r.from_name) : null, toName: String(r.to_name),
+  giftBrand: s(r.gift_brand), giftAmount: r.gift_amount === null ? null : Number(r.gift_amount), giftCode: s(r.gift_code),
+  createdAt: String(r.created_at), readAt: s(r.read_at),
+});
+
+/** Letters this member received (as finder) or sent (as owner). The gift code is only returned to the finder. */
+export async function getThanks(uid: number): Promise<{ received: Thanks[]; sent: Thanks[] }> {
+  const rows = await all<Record<string, unknown>>(
+    `SELECT t.*, i.title AS item_title, fu.name AS from_name, tu.name AS to_name
+     FROM thanks t
+     JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id
+     JOIN users fu ON fu.id = t.from_user JOIN users tu ON tu.id = t.to_user
+     WHERE t.to_user = ? OR t.from_user = ? ORDER BY t.created_at DESC`, [uid, uid]);
+  return {
+    received: rows.filter(r => Number(r.to_user) === uid).map(thanksRow),
+    sent: rows.filter(r => Number(r.from_user) === uid).map(r => ({ ...thanksRow(r), giftCode: null, fromName: 'you' })),
+  };
+}
+
+/** Returned claims of this member that have no thank-you letter yet (and a finder who can receive one). */
+export async function getUnthankedReturns(uid: number) {
+  return all<{ claim_id: number; title: string }>(
+    `SELECT c.id AS claim_id, i.title FROM claims c JOIN items i ON i.id = c.found_item_id
+     LEFT JOIN thanks t ON t.claim_id = c.id
+     WHERE c.claimant_id = ? AND c.status = 'returned' AND t.id IS NULL AND i.reporter_id <> c.claimant_id
+     ORDER BY c.returned_at DESC`, [uid]);
 }

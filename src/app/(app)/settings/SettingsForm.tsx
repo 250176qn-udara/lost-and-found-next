@@ -1,17 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { CATEGORIES, ID_TYPES, PLACES, SHELVES } from '@/lib/constants';
+import { CATEGORIES, ID_TYPES, SHELVES } from '@/lib/constants';
+import type { Place } from '@/lib/types';
+import { PlacesEditor } from './PlacesEditor';
 import { useT, useToast } from '@/components/Providers';
 import { Head } from '@/components/ui';
 
-// MOCK: settings are not saved yet; the controls only show a message.
+// General, categories, shelves and ID types are MOCK (not saved yet). Places are real (PlacesEditor).
 const TABS = ['General', 'Categories', 'Places & shelves', 'ID types'];
 
-export function SettingsForm() {
+export function SettingsForm({ places, initialTab }: { places: Place[]; initialTab?: string }) {
   const t = useT();
   const toast = useToast();
-  const [tab, setTab] = useState(TABS[0]);
+  const [tab, setTab] = useState(TABS.includes(initialTab ?? '') ? initialTab! : TABS[0]);
   const saved = () => toast('Setting saved');
   const Switch = ({ label, sub, on = true }: { label: string; sub?: string; on?: boolean }) => (
     <label className="sw">
@@ -40,7 +42,7 @@ export function SettingsForm() {
       {tab === 'Categories' && <ListEditor key="cat" title="Item categories" initial={CATEGORIES} placeholder="New category" />}
       {tab === 'Places & shelves' && (
         <>
-          <ListEditor key="place" title="Places on the map" initial={PLACES} placeholder="New place" />
+          <PlacesEditor places={places} />
           <div style={{ height: 14 }} />
           <ListEditor key="shelf" title="Shelves" initial={SHELVES} placeholder="New shelf" />
         </>

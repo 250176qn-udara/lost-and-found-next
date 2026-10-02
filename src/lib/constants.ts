@@ -5,7 +5,6 @@ export const COLORS = ['#2563eb', '#0d9488', '#6366f1', '#d97706', '#64748b'];
 
 export const CATEGORIES = ['Wallet', 'Bag', 'Electronics', 'ID card', 'Keys', 'Other'];
 export const BROWSE_CATEGORIES = ['All', 'Wallet', 'Bag', 'Electronics', 'ID card', 'Other'];
-export const PLACES = ['Library', 'Gym', 'Cafeteria', 'Room 302', 'Entrance'];
 export const SHELVES = ['A-01', 'A-02', 'B-01', 'B-02'];
 export const ID_TYPES = ['Student ID', 'Driver’s license', 'My Number card', 'Passport'];
 

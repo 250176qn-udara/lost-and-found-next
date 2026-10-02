@@ -1,7 +1,7 @@
 import { requirePage } from '@/lib/auth';
 import { getT } from '@/lib/i18n-server';
 import { getAuditLog, getHotspots, getMonthReport, getReportMonths, monthName, pct } from '@/lib/stats';
-import { CampusMap } from '@/components/CampusMap';
+import { GoogleMap } from '@/components/GoogleMap';
 import { CsvButton, PrintButton, SelectNav } from '@/components/ClientBits';
 import { Empty } from '@/components/Illustration';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
@@ -79,7 +79,7 @@ async function Hotspots({ orgId, t }: { orgId: number; t: T }) {
   const busiest = [...h.hours].sort((x, y) => y[1] - x[1])[0];
   return (
     <>
-      <CampusMap counts={Object.fromEntries(h.places)} t={t} mode="heat" />
+      <GoogleMap mode="heat" height={380} markers={h.pins.map(p => ({ id: p.place, lat: p.lat, lng: p.lng, title: t(p.place), sub: t('{n} items', { n: p.n }), count: p.n }))} />
       <div className="cols even">
         <div>
           <h2>{t('Ranking')}</h2>

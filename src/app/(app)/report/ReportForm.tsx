@@ -3,22 +3,23 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { reportItem } from '@/app/actions';
-import { CATEGORIES, MAX_PHOTO_BYTES, PLACES } from '@/lib/constants';
-import type { Kind } from '@/lib/types';
-import { CampusMap } from '@/components/CampusMap';
+import { CATEGORIES, MAX_PHOTO_BYTES } from '@/lib/constants';
+import type { Kind, Place } from '@/lib/types';
+import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
 import { useT, useToast } from '@/components/Providers';
 import { Callout, ErrorText, Field, Head, Kv } from '@/components/ui';
 
 const STEPS = ['Type', 'Item', 'Where & when', 'Photo', 'Review'];
 
 /** Five-step report wizard. Colour, brand and marks are saved inside the description. */
-export function ReportForm({ initialKind, isMember, afterPath }: { initialKind: Kind; isMember: boolean; afterPath: string }) {
+export function ReportForm({ initialKind, isMember, afterPath, places }: { initialKind: Kind; isMember: boolean; afterPath: string; places: Place[] }) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [kind, setKind] = useState<Kind>(initialKind);
-  const [f, setF] = useState({ title: '', category: CATEGORIES[0], colour: '', brand: '', marks: '', place: PLACES[0], date: '', description: '' });
+  const [f, setF] = useState({ title: '', category: CATEGORIES[0], colour: '', brand: '', marks: '', date: '', description: '' });
+  const [where, setWhere] = useState<PlaceValue>({ place: '', lat: null, lng: null });
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
   const [err, setErr] = useState('');
@@ -35,6 +36,7 @@ export function ReportForm({ initialKind, isMember, afterPath }: { initialKind: 
   function next() {
     setErr('');
     if (step === 2 && !f.title.trim()) return setErr('Please enter the item name.');
+    if (step === 3 && !where.place.trim()) return setErr('Please choose or type the place.');
     setStep(step + 1);
   }
 
@@ -52,7 +54,9 @@ export function ReportForm({ initialKind, isMember, afterPath }: { initialKind: 
     fd.set('kind', kind);
     fd.set('title', f.title);
     fd.set('category', f.category);
-    fd.set('place', f.place);
+    fd.set('place', where.place.trim());
+    fd.set('lat', where.lat === null ? '' : String(where.lat));
+    fd.set('lng', where.lng === null ? '' : String(where.lng));
     fd.set('item_date', f.date);
     fd.set('description', description);
     if (photo) fd.set('photo', photo);
@@ -110,10 +114,8 @@ export function ReportForm({ initialKind, isMember, afterPath }: { initialKind: 
 
         {step === 3 && (
           <>
-            <p className="meta">{t('Tap the place on the map.')}</p>
-            <CampusMap counts={{ [f.place]: 1 }} t={t} selected={f.place} onPick={place => setF({ ...f, place })} />
-            <div className="two">
-              <Field label={t('Place')}><select value={f.place} onChange={set('place')}>{PLACES.map(p => <option key={p} value={p}>{t(p)}</option>)}</select></Field>
+            <PlacePicker places={places} value={where} onChange={setWhere} />
+            <div className="two" style={{ marginTop: 12 }}>
               <Field label={t('Date')}><input type="date" value={f.date} onChange={set('date')} /></Field>
             </div>
           </>
@@ -138,7 +140,8 @@ export function ReportForm({ initialKind, isMember, afterPath }: { initialKind: 
             <Kv label={t('Colour')} value={f.colour} />
             <Kv label={t('Brand')} value={f.brand} />
             <Kv label={t('Marks or stickers')} value={f.marks} />
-            <Kv label={t('Place')} value={t(f.place)} />
+            <Kv label={t('Place')} value={t(where.place)} />
+            {where.lat !== null && <Kv label={t('Map pin')} value={`${where.lat.toFixed(5)}, ${where.lng!.toFixed(5)}`} />}
             <Kv label={t('Date')} value={f.date} />
             <Kv label={t('Description')} value={f.description} />
             {photo && <div className="meta">{t('Photo attached')}</div>}

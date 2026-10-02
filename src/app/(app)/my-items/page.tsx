@@ -2,7 +2,10 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requirePage } from '@/lib/auth';
 import { statusName } from '@/lib/constants';
-import { getClaimsOnMyFinds, getMatchPairs, getMyClaims, getMyItems } from '@/lib/data';
+import { getClaimsOnMyFinds, getMatchPairs, getMyClaims, getMyItems, getThanks, getUnthankedReturns } from '@/lib/data';
+import { GIFT_BRANDS } from '@/lib/gifts';
+import { ThankYouCard } from '@/components/ThankYouCard';
+import { GiftReveal } from './GiftReveal';
 import { getT } from '@/lib/i18n-server';
 import { scoreClass, scoreMatch } from '@/lib/match';
 import type { Claim, ClaimStatus, Item } from '@/lib/types';
@@ -24,8 +27,9 @@ const CLAIM_BADGE: Record<ClaimStatus, string> = { pending: '', approved: 'ok', 
 export default async function MyItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { user } = await requirePage({ roles: ['member'], membership: true });
   const orgId = user.organizationId!;
-  const [{ tab }, t, mine, claims, pairs, onFinds] = await Promise.all([
+  const [{ tab }, t, mine, claims, pairs, onFinds, thanks, unthanked] = await Promise.all([
     searchParams, getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getMatchPairs(orgId, user.id), getClaimsOnMyFinds(user.id, orgId),
+    getThanks(user.id), getUnthankedReturns(user.id),
   ]);
   const lost = mine.filter(i => i.kind === 'lost');
   const found = mine.filter(i => i.kind === 'found');
@@ -34,6 +38,7 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
     { key: 'lost', label: 'Things I lost', icon: 'search', count: lost.filter(i => i.status < 5).length },
     { key: 'found', label: 'Things I found', icon: 'hand', count: found.filter(i => i.status < 5).length },
     { key: 'claims', label: 'My claims', icon: 'ticket', count: claims.filter(c => c.status === 'approved' || c.status === 'pending').length },
+    { key: 'thanks', label: 'Thanks', icon: 'hand', count: thanks.received.filter(x => !x.readAt).length + unthanked.length },
   ];
   const cur = pickTab(tabs, tab === 'matches' ? 'lost' : tab);
 
@@ -49,7 +54,7 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
             <Stepper n={i.status} t={t} />
             {i.description && <><div className="sec-title" style={{ marginTop: 16 }}>{t('Your description')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{i.description}</p></>}
             {pair && i.status < 5 && (() => {
-              const { score, why } = scoreMatch({ place: pair.lostPlace, date: pair.lostDate }, { place: pair.foundPlace, date: pair.foundDate });
+              const { score, why } = scoreMatch({ place: pair.lostPlace, date: pair.lostDate, lat: pair.lostLat, lng: pair.lostLng }, { place: pair.foundPlace, date: pair.foundDate, lat: pair.foundLat, lng: pair.foundLng });
               const claimed = pair.claimStatus === 'pending' || pair.claimStatus === 'approved';
               return (
                 <>
@@ -114,11 +119,57 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
             </>
           )}
           {c.status === 'returned' && (
-            <div className="btnrow" style={{ marginTop: 0 }}><Link className="btn sec" href={`/history/${c.id}`}><Icon name="check" size={16} />{t('Certificate of return')}</Link></div>
+            <div className="btnrow" style={{ marginTop: 0 }}>
+              {unthanked.some(u => u.claim_id === c.id) && <Link className="btn" href={`/thanks/${c.id}`}>{t('Write a thank-you letter')}</Link>}
+              {thanks.sent.some(x => x.claimId === c.id) && <span className="badge ok">{t('Thanks sent')}</span>}
+              <Link className="btn sec" href={`/history/${c.id}`}><Icon name="check" size={16} />{t('Certificate of return')}</Link>
+            </div>
           )}
           {c.status === 'rejected' && <p style={{ margin: 0 }}>{t('Staff could not confirm that this item is yours. If you think this is a mistake, ask at the office.')}</p>}
         </Expandable>
       )) : <Empty art="verify" title={t('You have no claims yet.')} text={t('When you find your item in Found items, press "This is mine".')}><Link className="btn" href="/browse">{t('Browse found items')}</Link></Empty>)}
+
+      {cur === 'thanks' && (
+        <>
+          {unthanked.length > 0 && (
+            <>
+              <h2 style={{ marginTop: 0 }}>{t('Say thank you')}</h2>
+              {unthanked.map(u => (
+                <div key={u.claim_id} className="box" style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                  <span className="icon-chip green"><Icon name="hand" /></span>
+                  <div style={{ flex: 1, minWidth: 200 }}><b>{u.title}</b><div className="meta">{t('You got it back. A short letter means a lot to the finder.')}</div></div>
+                  <Link className="btn" href={`/thanks/${u.claim_id}`}>{t('Write a thank-you letter')}</Link>
+                </div>
+              ))}
+            </>
+          )}
+          <h2 style={unthanked.length ? undefined : { marginTop: 0 }}>{t('Letters you received')}</h2>
+          {thanks.received.length ? (
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))' }}>
+              {thanks.received.map(x => (
+                <ThankYouCard key={x.id} design={x.card} message={x.message} from={x.fromName ?? t('The owner of {item}', { item: x.itemTitle })}>
+                  {!x.readAt && <span className="badge" style={{ position: 'absolute', top: 12, right: 12 }}>{t('New')}</span>}
+                  {x.giftAmount && <div className="letter-gift">🎁 {t(GIFT_BRANDS.find(b => b.key === x.giftBrand)?.name ?? 'E-gift')} ¥{x.giftAmount.toLocaleString()}</div>}
+                  <GiftReveal thanksId={x.id} unread={!x.readAt} code={x.giftCode} how={GIFT_BRANDS.find(b => b.key === x.giftBrand)?.how ?? ''} />
+                </ThankYouCard>
+              ))}
+            </div>
+          ) : <Empty art="done" title={t('No letters yet.')} text={t('When an owner gets back an item you found, they can send you a thank-you letter here.')} />}
+          {thanks.sent.length > 0 && (
+            <>
+              <h2>{t('Letters you sent')}</h2>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))' }}>
+                {thanks.sent.map(x => (
+                  <ThankYouCard key={x.id} design={x.card} message={x.message} from={t('you')}>
+                    {x.giftAmount && <div className="letter-gift">🎁 {t(GIFT_BRANDS.find(b => b.key === x.giftBrand)?.name ?? 'E-gift')} ¥{x.giftAmount.toLocaleString()}</div>}
+                    <div className="meta" style={{ marginTop: 6 }}>{x.itemTitle} · {x.createdAt.slice(0, 10)}</div>
+                  </ThankYouCard>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
     </>
   );
 }

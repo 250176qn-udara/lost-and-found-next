@@ -62,6 +62,28 @@ INSERT IGNORE INTO organization_members (id, user_id, organization_id, status, r
   (4, 4, 3, 'approved', 'admin',  NOW()),
   (5, 5, 1, 'approved', 'staff',  NOW());
 
+-- Places each organization uses on its forms and map (admins manage them in Settings).
+CREATE TABLE IF NOT EXISTS places (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
+  name            VARCHAR(100) NOT NULL,
+  lat             DECIMAL(9,6) NULL,
+  lng             DECIMAL(9,6) NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_place (organization_id, name),
+  CONSTRAINT fk_place_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT IGNORE INTO places (organization_id, name, lat, lng) VALUES
+  (1, 'Library',   35.466200, 139.621800),
+  (1, 'Gym',       35.465600, 139.623100),
+  (1, 'Cafeteria', 35.466000, 139.622600),
+  (1, 'Room 302',  35.466400, 139.622400),
+  (1, 'Entrance',  35.465400, 139.622000),
+  (2, 'Entrance',  35.454900, 139.631300),
+  (2, 'Checkout',  35.455100, 139.631600),
+  (3, 'Lobby',     35.681200, 139.767100);
+
 -- Lost & found items (reporting).
 CREATE TABLE IF NOT EXISTS items (
   id              INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -70,7 +92,9 @@ CREATE TABLE IF NOT EXISTS items (
   kind            ENUM('lost','found') NOT NULL,
   title           VARCHAR(150) NOT NULL,
   category        VARCHAR(50)  NOT NULL,
-  place           VARCHAR(100) NOT NULL,
+  place           VARCHAR(100) NOT NULL,       -- a place from the organization's list, or typed by the user
+  lat             DECIMAL(9,6) NULL,           -- map pin (Google Maps), optional
+  lng             DECIMAL(9,6) NULL,
   item_date       DATE NULL,
   description     TEXT NULL,
   photo           LONGTEXT NULL,             -- optional image as a data: URL
@@ -132,9 +156,33 @@ CREATE TABLE IF NOT EXISTS claims (
   CONSTRAINT fk_claim_returned FOREIGN KEY (returned_by)   REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Thank-you letters from owners to finders (a letter is required; an e-gift is optional and paid by card).
+CREATE TABLE IF NOT EXISTS thanks (
+  id           INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id     INT UNSIGNED NOT NULL UNIQUE,      -- the returned claim being thanked (one letter per return)
+  from_user    INT UNSIGNED NOT NULL,             -- the owner
+  to_user      INT UNSIGNED NOT NULL,             -- the finder (who posted the found item)
+  message      TEXT NOT NULL,
+  card         VARCHAR(20) NOT NULL DEFAULT 'classic',
+  show_name    TINYINT(1) NOT NULL DEFAULT 0,     -- sign the letter with the owner's name
+  gift_brand   VARCHAR(50) NULL,
+  gift_amount  INT UNSIGNED NULL,                 -- yen
+  gift_code    VARCHAR(100) NULL,
+  charge_id    VARCHAR(64) NULL,                  -- PAY.JP charge id
+  created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at      TIMESTAMP NULL DEFAULT NULL,
+  INDEX idx_to (to_user),
+  CONSTRAINT fk_thanks_claim FOREIGN KEY (claim_id)  REFERENCES claims(id) ON DELETE CASCADE,
+  CONSTRAINT fk_thanks_from  FOREIGN KEY (from_user) REFERENCES users(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_thanks_to    FOREIGN KEY (to_user)   REFERENCES users(id)  ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Upgrading an existing database (created before handed_in_at existed)? Run this once:
 --   ALTER TABLE items ADD COLUMN handed_in_at TIMESTAMP NULL DEFAULT NULL AFTER received_at;
 -- and (created before disposal records and pickup codes):
 --   ALTER TABLE items ADD COLUMN disposed_at TIMESTAMP NULL DEFAULT NULL AFTER handed_in_at, ADD COLUMN disposal_method VARCHAR(50) NULL AFTER disposed_at,
 --     ADD COLUMN disposal_note VARCHAR(255) NULL AFTER disposal_method, ADD COLUMN disposed_by INT UNSIGNED NULL AFTER disposal_note;
 --   ALTER TABLE claims ADD COLUMN pickup_code CHAR(6) NULL AFTER answers;
+-- and (created before map pins): run the places / thanks CREATE TABLE blocks above, then
+--   ALTER TABLE items ADD COLUMN lat DECIMAL(9,6) NULL AFTER place, ADD COLUMN lng DECIMAL(9,6) NULL AFTER lat;
+--   UPDATE items i JOIN places p ON p.organization_id = i.organization_id AND p.name = i.place SET i.lat = p.lat, i.lng = p.lng WHERE i.lat IS NULL;

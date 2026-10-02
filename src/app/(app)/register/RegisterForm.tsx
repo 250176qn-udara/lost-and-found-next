@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 import { receiveAndRegister } from '@/app/actions';
-import { CATEGORIES, PLACES, SHELVES } from '@/lib/constants';
-import type { QueueItem } from '@/lib/types';
+import { CATEGORIES, SHELVES } from '@/lib/constants';
+import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
+import type { Place, QueueItem } from '@/lib/types';
 import { checkPhoto, PhotoInput } from '@/components/PhotoInput';
 import { useT, useToast } from '@/components/Providers';
 import { ErrorText, Field } from '@/components/ui';
@@ -13,11 +14,12 @@ import { ErrorText, Field } from '@/components/ui';
 // Placeholder label pattern until real QR codes are added.
 const QR_CELLS = Array.from({ length: 121 }, (_, i) => ((i * 7 + (i % 5) * 3 + (i >> 2)) % 3 ? '' : 'w'));
 
-export function RegisterForm({ queued, afterPath }: { queued: QueueItem | null; afterPath: string }) {
+export function RegisterForm({ queued, afterPath, places }: { queued: QueueItem | null; afterPath: string; places: Place[] }) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
   const [err, setErr] = useState('');
+  const [where, setWhere] = useState<PlaceValue>({ place: queued?.place ?? '', lat: null, lng: null });
   const [busy, start] = useTransition();
 
   function submit(e: FormEvent<HTMLFormElement>) {
@@ -58,14 +60,10 @@ export function RegisterForm({ queued, afterPath }: { queued: QueueItem | null; 
               <Field label={t('Finder name (for thanks)')}><input name="finder_name" placeholder={t('Optional')} /></Field>
             </div>
           )}
-          <div className="two">
-            <Field label={t('Category')}>
-              <select name="category" defaultValue={queued?.category}>{CATEGORIES.map(c => <option key={c} value={c}>{t(c)}</option>)}</select>
-            </Field>
-            <Field label={t('Found at')}>
-              <select name="place" defaultValue={queued?.place}>{PLACES.map(p => <option key={p} value={p}>{t(p)}</option>)}</select>
-            </Field>
-          </div>
+          <Field label={t('Category')}>
+            <select name="category" defaultValue={queued?.category}>{CATEGORIES.map(c => <option key={c} value={c}>{t(c)}</option>)}</select>
+          </Field>
+          <div className="field"><label>{t('Found at')}</label><PlacePicker places={places} value={where} onChange={setWhere} formNames /></div>
           <div className="two">
             <Field label={t('Found date')}><input name="item_date" type="date" defaultValue={queued?.date ?? ''} /></Field>
             <Field label={t('Storage shelf')}><select name="shelf">{SHELVES.map(s => <option key={s}>{s}</option>)}</select></Field>

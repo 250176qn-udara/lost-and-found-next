@@ -59,6 +59,23 @@ The bell in the top bar shows unread notifications (read state is kept in the br
   one week of receiving them. Storage → Deadlines shows the police date for each item; "Close item" records it as
   handed to the police (or donated, recycled, disposed). Closed items stay in the records (status 6).
 
+## Places, Google Maps and thank-you gifts
+
+- **Places.** Admins manage the organization's places in Settings → Places & shelves (name + a pin set by clicking
+  the map). Members pick one of them or type their own place, and can drop a pin. Matching treats pins within 150 m as
+  the same place.
+- **Google Maps.** Set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `.env.local` (Google Cloud Console → enable "Maps
+  JavaScript API" → Credentials → API key, restricted to your site). Optional `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`
+  (Google's `DEMO_MAP_ID` is used otherwise). Restart `npm run dev` after changing. Without a key the pages show a
+  setup note and the lists still work.
+- **Thank-you letters.** After an item is returned, the owner writes a letter to the finder (required) and can add an
+  e-gift card (optional) paid by card. It goes straight from owner to finder; the office is not involved.
+- **PAY.JP.** Set `NEXT_PUBLIC_PAYJP_PUBLIC_KEY` and `PAYJP_SECRET_KEY` (test keys `pk_test_…` / `sk_test_…` from the
+  PAY.JP dashboard). Cards are tokenised in the browser by payjp.js with 3-D Secure; the server charges the token and
+  refunds automatically if saving fails. In test mode the gift code is a marked TEST code.
+- **Before real use:** connect a gift-card API in `src/lib/gift-provider.ts` (e.g. giftee for Business or Amazon
+  Incentives API, by contract), pass PAY.JP's live review, and publish a 特定商取引法に基づく表記 page.
+
 ## Files
 
 ```

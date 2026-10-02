@@ -122,14 +122,16 @@ export async function getMonthReport(orgId: number, month: string) {
 /** Reports per place, and per time of day the report was made. */
 export async function getHotspots(orgId: number) {
   const [places, hours] = await Promise.all([
-    all<{ place: string; n: number }>(
-      'SELECT place, COUNT(*) AS n FROM items WHERE organization_id = ? GROUP BY place ORDER BY n DESC', [orgId]),
+    all<{ place: string; n: number; lat: string | null; lng: string | null }>(
+      'SELECT place, COUNT(*) AS n, AVG(lat) AS lat, AVG(lng) AS lng FROM items WHERE organization_id = ? GROUP BY place ORDER BY n DESC', [orgId]),
     all<{ h: number; n: number }>(
       'SELECT HOUR(created_at) AS h, COUNT(*) AS n FROM items WHERE organization_id = ? GROUP BY h', [orgId]),
   ]);
   const slots: [string, number, number][] = [['0-8', 0, 8], ['8-10', 8, 10], ['10-12', 10, 12], ['12-14', 12, 14], ['14-16', 14, 16], ['16-18', 16, 18], ['18-24', 18, 24]];
   return {
     places: places.map(p => [p.place, num(p.n)] as [string, number]),
+    /** Places that have pins, for the heat map (pin = average of that place's item pins). */
+    pins: places.filter(p => p.lat !== null && p.lng !== null).map(p => ({ place: p.place, n: num(p.n), lat: Number(p.lat), lng: Number(p.lng) })),
     hours: slots.map(([l, from, to]) => [l, hours.filter(h => h.h >= from && h.h < to).reduce((a, h) => a + num(h.n), 0)] as [string, number]),
   };
 }
@@ -176,6 +178,10 @@ export async function getAuditLog(orgId: number | null, limit = 200): Promise<Au
     `SELECT c.returned_at, 'Claims', 'Item handed over', u.name, i.title, o.name
      FROM claims c JOIN items i ON i.id = c.found_item_id LEFT JOIN users u ON u.id = c.returned_by JOIN organizations o ON o.id = i.organization_id
      WHERE c.returned_at IS NOT NULL ${w('i.organization_id')}`,
+    `SELECT t.created_at, 'Claims', IF(t.gift_amount IS NULL, 'Thank-you letter sent', 'Thank-you letter and gift sent'), u.name, i.title, o.name
+     FROM thanks t JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id JOIN users u ON u.id = t.from_user
+     JOIN organizations o ON o.id = i.organization_id
+     WHERE 1 ${w('i.organization_id')}`,
     `SELECT m.requested_at, 'Membership', 'Membership requested', u.name, u.name, o.name
      FROM organization_members m JOIN users u ON u.id = m.user_id JOIN organizations o ON o.id = m.organization_id
      WHERE 1 ${w('m.organization_id')}`,

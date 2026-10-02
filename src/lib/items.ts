@@ -2,6 +2,7 @@ import 'server-only';
 import type { PoolConnection } from 'mysql2/promise';
 import { all, exec, pool } from './db';
 import type { Claim, Item, ItemStatus, Kind } from './types';
+import { distanceM, NEAR_METERS, num } from './geo';
 
 /** Shapes one items-table row (never includes the photo itself, only whether one exists). */
 export function itemRow(r: Record<string, unknown>): Item {
@@ -11,6 +12,8 @@ export function itemRow(r: Record<string, unknown>): Item {
     title: String(r.title),
     category: String(r.category),
     place: String(r.place),
+    lat: num(r.lat),
+    lng: num(r.lng),
     date: (r.item_date as string) ?? null,
     description: (r.description as string) ?? null,
     status: Number(r.status) as ItemStatus,
@@ -57,15 +60,16 @@ export function claimRow(r: Record<string, unknown>): Claim {
 
 /**
  * Basic rule-based matching (no AI yet): looks for one open item of the opposite kind,
- * in the same organization and category, that shares the place or the date. Picks the
- * closest match — same place AND date first, then same place, then same date.
+ * in the same organization and category, that shares the place (same name, or map pins within NEAR_METERS) or the date.
+ * Picks the closest match — same place AND date first, then same place, then same date.
  */
-export async function findMatchFor(orgId: number, kind: Kind, category: string, place: string, date: string | null, excludeId: number): Promise<number | null> {
+export async function findMatchFor(orgId: number, kind: Kind, category: string, place: string, date: string | null, excludeId: number,
+  pin: { lat: number | null; lng: number | null } = { lat: null, lng: null }): Promise<number | null> {
   const wantKind = kind === 'lost' ? 'found' : 'lost';
   // A lost item matches found items already at the office; a found item matches open lost reports.
   const wantStatus = kind === 'lost' ? [2, 3] : [1];
-  const rows = await all<{ id: number; place: string; item_date: string | null }>(
-    `SELECT id, place, item_date FROM items
+  const rows = await all<{ id: number; place: string; item_date: string | null; lat: string | null; lng: string | null }>(
+    `SELECT id, place, item_date, lat, lng FROM items
      WHERE organization_id = ? AND kind = ? AND category = ? AND matched_item_id IS NULL
            AND status IN (${wantStatus.map(() => '?').join(',')}) AND id <> ?
      ORDER BY id`,
@@ -73,7 +77,9 @@ export async function findMatchFor(orgId: number, kind: Kind, category: string, 
   let placeMatch: number | null = null;
   let dateMatch: number | null = null;
   for (const r of rows) {
-    const samePlace = r.place.toLowerCase() === place.toLowerCase();
+    const near = pin.lat !== null && pin.lng !== null && r.lat !== null && r.lng !== null
+      && distanceM({ lat: pin.lat, lng: pin.lng }, { lat: Number(r.lat), lng: Number(r.lng) }) <= NEAR_METERS;
+    const samePlace = r.place.toLowerCase() === place.toLowerCase() || near;
     const sameDate = date !== null && r.item_date === date;
     if (samePlace && sameDate) return r.id;
     if (samePlace && placeMatch === null) placeMatch = r.id;
