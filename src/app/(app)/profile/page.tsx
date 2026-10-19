@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { ROLE_NAMES } from '@/lib/constants';
+import { GUIDE_URL, ROLE_NAMES } from '@/lib/constants';
 import { getOrganizations } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
 import { LangButton } from '@/components/HeaderControls';
@@ -88,6 +88,11 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       {cur === 'help' && (
         <>
+          <a href={GUIDE_URL} className="guidecard">
+            <Illustration name="search" size={96} />
+            <span><b>{t('Try the interactive guide')}</b><span className="meta">{t('Follow one lost wallet from report to return, step by step. Takes about 2 minutes.')}</span></span>
+            <span className="btn">{t('Start')} →</span>
+          </a>
           <div className="howto">
             {HOW.map(([art, title, text]) => (
               <div className="box" key={title}><Illustration name={art} size={110} /><b>{t(title)}</b><p className="meta" style={{ margin: '4px 0 0' }}>{t(text)}</p></div>

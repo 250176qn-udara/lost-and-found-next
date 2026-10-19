@@ -44,6 +44,8 @@ export type Item = {
   matchedDate?: string | null;
   /** getBrowseItems: posted by the viewer (they cannot claim it). */
   mine?: boolean;
+  /** getBrowseItems: the viewer's own open claim on this item, if any. */
+  myClaim?: ClaimStatus | null;
   /** Only filled by getMyItems. */
   itemCode?: string | null;
   shelf?: string | null;
@@ -62,6 +64,8 @@ export type Claim = {
   status: ClaimStatus;
   claimantName: string | null;
   claimantEmail: string | null;
+  /** Staff claim lists only. */
+  claimantId?: number;
   lostDescription: string | null;
   createdAt: string;
   /** Staff claim lists only: whether the found item is at the office, and who posted it. */
@@ -132,6 +136,7 @@ export type OrgItem = {
   id: number;
   kind: Kind;
   title: string;
+  hasPhoto: boolean;
   category: string;
   place: string;
   date: string | null;
@@ -155,7 +160,7 @@ export type MatchPair = {
 /** One line of the audit log, built from the timestamps the tables already keep. */
 export type AuditRow = { at: string; area: 'Items' | 'Claims' | 'Membership'; action: string; who: string | null; target: string; org: string };
 
-export type ClaimEvent = { id: number; status: ClaimStatus; claimantName: string; createdAt: string; decidedAt: string | null; decidedByName: string | null; returnedAt: string | null; returnedByName: string | null; idType: string | null };
+export type ClaimEvent = { id: number; status: ClaimStatus; claimantId: number; claimantName: string; createdAt: string; decidedAt: string | null; decidedByName: string | null; returnedAt: string | null; returnedByName: string | null; idType: string | null };
 
 export type Notice = { id: string; title: string; text: string; at: string; href: string };
 

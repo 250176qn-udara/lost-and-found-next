@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { getFinderTasks, getMemberNotices, getMyClaims, getMyItems, getUnthankedReturns } from '@/lib/data';
+import { getClaimsOnMyFinds, getFinderTasks, getMemberNotices, getMyClaims, getMyItems, getUnthankedReturns } from '@/lib/data';
+import { finderJourney, ownerJourney } from '@/lib/journey';
+import { GUIDE_URL } from '@/lib/constants';
+import { JourneyBar } from '@/components/Journey';
 import { getT } from '@/lib/i18n-server';
 import { getCommunityStats } from '@/lib/stats';
 import type { Item } from '@/lib/types';
 import { CategoryArt, Icon } from '@/components/Icon';
 import { Empty, Illustration } from '@/components/Illustration';
-import { placeDate, Stat, Stepper, when } from '@/components/ui';
+import { placeDate, Stat, when } from '@/components/ui';
 
 const hasMatch = (i: Item) => i.status === 3 && i.kind === 'lost' && !!i.matchedItemId;
 
@@ -17,6 +20,13 @@ export default async function HomePage() {
     getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getCommunityStats(orgId, user.id), getMemberNotices(user.id, orgId),
     getFinderTasks(user.id, orgId), getUnthankedReturns(user.id),
   ]);
+  const onFinds = await getClaimsOnMyFinds(user.id, orgId);
+  const journeyOf = (i: Item) => {
+    if (i.kind === 'found') return finderJourney({ claim: onFinds.get(i.id) ?? null, handedIn: !!i.handedInAt, atOffice: !!i.receivedAt, returned: i.status === 5, thanked: false });
+    const oc = i.matchedItemId ? claims.find(c => c.foundItemId === i.matchedItemId) ?? null : null;
+    return ownerJourney({ matched: !!i.matchedItemId, claim: oc?.status ?? null, claimId: oc?.id, atOffice: !!oc?.shelf,
+      thanked: !!oc && oc.status === 'returned' && !unthanked.some(u => u.claim_id === oc.id) });
+  };
   const open = mine.filter(i => i.status < 5);
 
   // "Action needed": things only this member can move forward.
@@ -40,6 +50,13 @@ export default async function HomePage() {
         <div style={{ background: 'rgba(255,255,255,.12)', borderRadius: 16, padding: 6 }}><Illustration name="done" size={110} /></div>
       </div>
 
+      {mine.length === 0 && claims.length === 0 && (
+        <a href={GUIDE_URL} className="guidecard" style={{ marginBottom: 20 }}>
+          <Illustration name="report" size={90} />
+          <span><b>{t('New here? See how it works')}</b><span className="meta">{t('A 2-minute interactive guide: how a lost item gets back to its owner.')}</span></span>
+          <span className="btn">{t('Start')} →</span>
+        </a>
+      )}
       <div className="quick">
         <Link href="/report"><span className="icon-chip red"><Icon name="search" /></span><span><b>{t('I lost something')}</b><span className="meta">{t('Report it and get matches')}</span></span></Link>
         <Link href="/report?kind=found"><span className="icon-chip green"><Icon name="hand" /></span><span><b>{t('I found something')}</b><span className="meta">{t('Post it so the owner can claim it')}</span></span></Link>
@@ -68,7 +85,10 @@ export default async function HomePage() {
                 <CategoryArt category={i.category} />
                 <div style={{ flex: 1, minWidth: 0 }}><b style={{ color: 'var(--ink)' }}>{i.title}</b><div className="meta">{t(i.kind === 'lost' ? 'Lost' : 'Found')} · {placeDate(i.place, i.date, t)}</div></div>
               </div>
-              <Stepper n={i.status} t={t} />
+              {(() => { const j = journeyOf(i); return (<>
+                <JourneyBar done={j.done} t={t} compact />
+                <div className={'nextline ' + j.next.who}>{t(j.next.text)}</div>
+              </>); })()}
             </Link>
           ))}
         </div>

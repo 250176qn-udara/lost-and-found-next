@@ -361,6 +361,84 @@ nav a::before{display:none}
 .fullinput{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;margin-bottom:8px}
 @media(max-width:600px){.cardpick{grid-template-columns:repeat(2,1fr)}}
 
+/* ---------- claim conversation ---------- */
+.chat{margin-top:16px;padding-top:12px;border-top:1px solid var(--line2)}
+.chat-log{max-height:260px;overflow-y:auto;padding:4px 2px;margin-bottom:10px;display:flex;flex-direction:column}
+.chat-log .bubble{animation:rise .25s ease;white-space:pre-line}
+.chat-input{display:flex;gap:8px;align-items:flex-end}
+.chat-input textarea{flex:1;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;resize:vertical}
+
+/* ---------- office chat ---------- */
+a.thread{color:inherit;text-decoration:none}
+a.thread:hover{border-color:#cbd5e1}
+.chatwin{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.chatwin-head{display:flex;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line2)}
+.chatwin-log{height:min(56vh,520px);overflow-y:auto;padding:14px 18px;background:#f8fafc;display:flex;flex-direction:column}
+.chatwin-log>div{display:flex;flex-direction:column}
+.chatwin-log .bubble{white-space:pre-line;animation:rise .25s ease;box-shadow:var(--shadow);background:#fff;border:1px solid var(--line2)}
+.chatwin-log .bubble.me{background:var(--brand);border-color:var(--brand)}
+.chatwin .chips,.chatwin .chat-input,.chatwin>p,.chatwin>div:last-child{margin-left:18px;margin-right:18px}
+.chatwin .chat-input{margin-bottom:4px}
+.chatwin>div:last-child{margin-bottom:14px}
+.chatday{align-self:center;font-size:11.5px;color:var(--mute);background:var(--line2);border-radius:99px;padding:1px 10px;margin:10px 0 4px}
+.bubble-link{display:block;margin-top:6px;font-size:13px;color:inherit;text-decoration:underline;opacity:.9}
+.bubble.me .bubble-link{color:#fff}
+
+.rowthumb{width:36px;height:36px;border-radius:12px;object-fit:cover;display:block}
+
+/* ---------- reactions on thank-you letters ---------- */
+.reactions{display:flex;gap:6px;margin-top:12px;position:relative;z-index:1}
+.reactions button{font-size:20px;line-height:1;width:42px;height:38px;border-radius:99px;border:1px solid var(--line);background:#fff;cursor:pointer;transition:transform .15s,border-color .15s,background .15s}
+.reactions button:hover{transform:translateY(-2px) scale(1.08)}
+.reactions button.on{border-color:currentColor;background:#fff;box-shadow:0 0 0 3px rgba(37,99,235,.15);animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
+.reactions button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.reacted{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:4px 10px;border-radius:99px;background:#fff;border:1px solid var(--line);font-size:13px;color:var(--text);position:relative;z-index:1;animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
+.reacted span{font-size:18px}
+
+/* ---------- "You claimed this" on Found items ---------- */
+.claimed{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:10px;background:var(--greenbg);border:1px solid #bbf7d0;color:var(--green);text-decoration:none;font-size:13px;line-height:1.3;animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
+.claimed b{display:block;font-weight:600}
+.claimed span span{color:var(--mute)}
+.claimed:hover{border-color:var(--green)}
+
+/* ---------- journey bar + next step (like the "How it works" demo) ---------- */
+.journey{list-style:none;margin:2px 0 12px;padding:0;display:flex}
+.journey li{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
+.journey li::before{content:"";position:absolute;top:13px;left:-50%;right:50%;height:2px;background:var(--line);z-index:0}
+.journey li:first-child::before{display:none}
+.journey li.done::before,.journey li.now::before{background:var(--brand)}
+.jdot{position:relative;z-index:1;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;
+  background:var(--card);border:2px solid #cbd5e1;color:var(--mute)}
+.journey li.done .jdot{background:var(--brand);border-color:var(--brand);color:#fff}
+.journey li.now .jdot{background:var(--amber);border-color:var(--amber);color:#fff;box-shadow:0 0 0 5px rgba(217,119,6,.18);animation:pop .4s cubic-bezier(.2,1.6,.4,1)}
+.jlbl{font-size:11.5px;color:var(--mute);margin-top:5px;line-height:1.25;padding:0 2px}
+.journey li.done .jlbl{color:var(--brand-dk)}
+.journey li.now .jlbl{color:#92400e;font-weight:600}
+.journey.compact{margin:12px 0 6px}
+.journey.compact .jdot{width:20px;height:20px;font-size:10.5px}
+.journey.compact li::before{top:9px}
+.nextstep{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:#f8fafc}
+.nextstep p{flex:1;min-width:200px;margin:0;font-size:14px;color:var(--text)}
+.who-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--line2);color:var(--text);white-space:nowrap}
+.nextstep.you{background:var(--amberbg);border-color:#fde68a}.nextstep.you .who-chip{background:var(--amber);color:#fff}
+.nextstep.staff .who-chip{background:var(--brand-bg);color:var(--brand-dk)}
+.nextstep.finder .who-chip,.nextstep.owner .who-chip{background:#ede9fe;color:#6d28d9}
+.nextstep.system .who-chip{background:var(--ink);color:#fff}
+.nextstep.done{background:var(--greenbg);border-color:#bbf7d0}.nextstep.done .who-chip{background:var(--green);color:#fff}
+.jpanel{margin-bottom:4px}
+.nextline{font-size:13px;color:var(--mute);margin-top:2px}
+.nextline.you{color:#92400e;font-weight:600}.nextline.done{color:var(--green)}
+@media(max-width:600px){.jlbl{font-size:10px}.journey .jdot{width:24px;height:24px}.journey li::before{top:11px}}
+
+/* ---------- guide card ---------- */
+.guidecard{display:flex;align-items:center;gap:18px;padding:16px 20px;margin-bottom:18px;border-radius:14px;text-decoration:none;color:inherit;
+  background:linear-gradient(120deg,#eff6ff,#fff 70%);border:1px solid #bfdbfe;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
+.guidecard:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.guidecard>span:nth-child(2){flex:1}
+.guidecard b{display:block;color:var(--ink);font-size:16px}
+.guidecard .illus{margin:0;flex:none}
+@media(max-width:600px){.guidecard{flex-wrap:wrap}.guidecard .illus{display:none}}
+
 /* ---------- animations ---------- */
 @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fadein{from{opacity:0}to{opacity:1}}

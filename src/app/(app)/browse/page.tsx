@@ -58,8 +58,13 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
                 <div className="meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={14} />{placeDate(i.place, i.date, t)}</div>
               </Link>
               <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 8 }}>
-                {i.status >= 4
-                  ? <span className="badge ok">{t('Owner found')}</span>
+                {i.myClaim ? (
+                    <Link href="/my-items?tab=claims" className="claimed">
+                      <Icon name="check" size={15} />
+                      <span><b>{t('You claimed this')}</b><span>{t(i.myClaim === 'approved' ? 'Ready to pick up' : 'Checking your answers')}</span></span>
+                    </Link>
+                  )
+                  : i.status >= 4 ? <span className="badge ok">{t('Owner found')}</span>
                   : i.mine ? <span className="badge">{t('You posted this')}</span>
                   : user.role !== 'member' ? null
                   : <ClaimButton itemId={i.id} label="This is mine" className="btn sec" />}

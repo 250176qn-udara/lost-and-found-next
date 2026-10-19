@@ -4,7 +4,7 @@ import type { NextConfig } from 'next';
 const MOVED: [from: string, to: string][] = [
   ['/queue', '/desk?tab=finders'], ['/claims', '/desk'], ['/handover', '/desk?tab=pickups'], ['/scan', '/register?tab=lookup'],
   ['/matches', '/my-items'], ['/pickup', '/my-items?tab=claims'], ['/history', '/my-items?tab=claims'], ['/rewards', '/my-items'],
-  ['/map', '/browse?view=map'], ['/messages', '/home'], ['/help', '/profile?tab=help'],
+  ['/map', '/browse?view=map'], ['/help', '/profile?tab=help'],
   ['/alerts', '/dash'], ['/item-history', '/items'], ['/match-review', '/items?tab=matches'],
   ['/expiry', '/storage?tab=deadlines'], ['/disposal', '/storage?tab=closed'],
   ['/roles', '/users'], ['/staff-activity', '/users?tab=activity'],

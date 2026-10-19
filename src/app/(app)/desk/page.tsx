@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { getClaimsQueue, getQueue } from '@/lib/data';
+import { getClaimMessages, getClaimsQueue, getQueue } from '@/lib/data';
+import { ClaimChat } from '@/components/ClaimChat';
 import { getT } from '@/lib/i18n-server';
 import { Expandable } from '@/components/Expandable';
 import { Icon } from '@/components/Icon';
@@ -17,6 +18,8 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   const orgId = user.organizationId!;
   const [{ tab }, t, claims, outside] = await Promise.all([searchParams, getT(), getClaimsQueue(orgId), getQueue(orgId)]);
   const pending = claims.filter(c => c.status === 'pending');
+  const msgs = await getClaimMessages(claims.map(c => c.id));
+  const newReply = (id: number) => (msgs[id] ?? []).some(m => !m.fromStaff && !m.readAt);
   const pickups = claims.filter(c => c.status === 'approved');
   const tabs: TabDef[] = [
     { key: 'verify', label: 'Verify claims', icon: 'shield', count: pending.length },
@@ -31,10 +34,11 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
       <Tabs tabs={tabs} current={cur} base="/desk" t={t} />
 
       {cur === 'verify' && (pending.length ? pending.map((c, n) => (
-        <Expandable key={c.id} open={n === 0} tone={ago(c.createdAt) >= 2 ? 'warn' : ''}
+        <Expandable key={c.id} open={n === 0 || newReply(c.id)} tone={ago(c.createdAt) >= 2 ? 'warn' : ''}
           head={<>
             <span className="icon-chip amber"><Icon name="shield" /></span>
             <div className="grow"><b>{c.itemTitle}</b><div className="meta">{t('claimed by {name}', { name: c.claimantName ?? '' })} · {when(c.createdAt)}</div></div>
+            {newReply(c.id) && <span className="badge ok">{t('New reply')}</span>}
             {ago(c.createdAt) >= 2 && <span className="badge no">{t('Waiting {n} days', { n: ago(c.createdAt) })}</span>}
           </>}>
           <div className="cols even">
@@ -55,6 +59,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
             </div>
           </div>
           <DecideButtons id={c.id} />
+          <ClaimChat claimId={c.id} messages={msgs[c.id] ?? []} viewer="staff" open messagesHref={`/messages?with=${c.claimantId}`} />
           {c.foundItemId && <div className="btnrow" style={{ marginTop: 8 }}><Link href={`/items/${c.foundItemId}`}>{t('Open the item')}</Link></div>}
         </Expandable>
       )) : <Empty art="verify" title={t('No claims to verify.')} text={t('New claims appear here. You compare the answers with the private details.')} />)}
@@ -74,7 +79,8 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
                 : <><b>{t('The item is still with the finder')}</b><div className="meta">{t('Ask {name} to bring it to the office, then hand it to the owner here.', { name: c.finderName ?? '' })}</div></>}
             </Callout>
           )}
-          <HandoverForm id={c.id} hasCode={!!c.hasCode} ready={!!c.atOffice} />
+          <HandoverForm id={c.id} hasCode ready={!!c.atOffice} itemId={c.foundItemId} />
+          <ClaimChat claimId={c.id} messages={msgs[c.id] ?? []} viewer="staff" open messagesHref={`/messages?with=${c.claimantId}`} />
         </Expandable>
       )) : <Empty art="done" title={t('No pickups waiting.')} text={t('Approved claims appear here until the owner collects the item.')} />)}
 

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How Lost &amp; Found works</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f6fa; --card:#ffffff; --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --line2:#cbd5e1;
+  --teal:#2563eb; --tealbg:#eff6ff; --tealtx:#1d4ed8; --amber:#d97706; --amberbg:#fffbeb; --ambertx:#92400e;
+  --red:#dc2626; --redbg:#fef2f2; --lane:#eef2f7; --lane2:#f8fafc; --hero:#0f172a; --herotx:#ffffff; --herosub:#cbd5e1;
+  --onteal:#ffffff; --onamber:#14213d; --shadow:0 10px 24px -18px rgba(20,33,61,.55);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1525; --card:#172036; --ink:#e8edf7; --mute:#9aa6bd; --line:#2a3858; --line2:#51607f;
+    --teal:#60a5fa; --tealbg:#172554; --tealtx:#93c5fd; --amber:#e9a23b; --amberbg:#3a2c12; --ambertx:#f0c273;
+    --red:#ef8a82; --redbg:#3d1e1f; --lane:#141d33; --lane2:#101829; --hero:#0a101d; --herotx:#ffffff; --herosub:#aebbd6;
+    --onteal:#0e1525; --onamber:#14213d; --shadow:0 10px 24px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1525; --card:#172036; --ink:#e8edf7; --mute:#9aa6bd; --line:#2a3858; --line2:#51607f;
+  --teal:#60a5fa; --tealbg:#172554; --tealtx:#93c5fd; --amber:#e9a23b; --amberbg:#3a2c12; --ambertx:#f0c273;
+  --red:#ef8a82; --redbg:#3d1e1f; --lane:#141d33; --lane2:#101829; --hero:#0a101d; --herotx:#ffffff; --herosub:#aebbd6;
+  --onteal:#0e1525; --onamber:#14213d; --shadow:0 10px 24px -18px rgba(0,0,0,.8);
+}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 12px);scroll-behavior:smooth}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 "Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif}
+button,select,textarea,input{font:inherit;color:inherit}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+
+/* hero */
+.hero{background:var(--hero);color:var(--herotx);padding:34px 0 38px}
+.hero .wrap{display:flex;gap:24px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.hero h1{margin:0 0 8px;font-size:clamp(28px,5vw,42px);line-height:1.2;font-weight:700}
+.hero p{margin:0;max-width:34em;color:var(--herosub)}
+.lang{display:inline-flex;border:1px solid rgba(255,255,255,.35);border-radius:999px;overflow:hidden;flex:none}
+.lang button{border:0;background:none;color:var(--herosub);padding:6px 16px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:#fff;color:#14213d;font-weight:700}
+.lang button:focus-visible,.btn:focus-visible,.dot:focus-visible,.node:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+/* sections */
+section{padding:34px 0 6px}
+h2{font-size:24px;margin:0 0 6px;line-height:1.3}
+.lead{margin:0 0 18px;color:var(--mute);max-width:44em}
+
+/* process diagram */
+.diagram{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow);overflow-x:auto}
+.diagram svg{display:block;min-width:760px;width:100%;height:auto}
+.lane-bg{fill:var(--lane)} .lane-bg.alt{fill:var(--lane2)}
+.lane-t{fill:var(--ink);font-size:13px;font-weight:700}
+.lane-s{fill:var(--mute);font-size:11px}
+.lbl{fill:var(--ink);font-size:12px;text-anchor:middle}
+.arrow{fill:none;stroke:var(--line2);stroke-width:2}
+.arrow.dash{stroke-dasharray:5 4;stroke:var(--amber)}
+.note-t{fill:var(--ambertx);font-size:11px}
+.node{cursor:pointer}
+.node circle{fill:var(--card);stroke:var(--line2);stroke-width:2;transition:fill .2s,stroke .2s}
+.node text.n{font-size:15px;font-weight:700;text-anchor:middle;fill:var(--mute)}
+.node.done circle{fill:var(--teal);stroke:var(--teal)} .node.done text.n{fill:var(--onteal)}
+.node.now circle{fill:var(--amber);stroke:var(--amber);stroke-width:5;stroke-opacity:.35} .node.now text.n{fill:var(--onamber)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:12px 4px 0;color:var(--mute);font-size:13px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+
+/* walkthrough */
+.player{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.pbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dots{display:flex;gap:6px;flex-wrap:wrap}
+.dot{width:34px;height:34px;border-radius:50%;border:2px solid var(--line2);background:var(--card);color:var(--mute);font-weight:700;cursor:pointer}
+.dot.done{background:var(--teal);border-color:var(--teal);color:var(--onteal)}
+.dot.now{background:var(--amber);border-color:var(--amber);color:var(--onamber)}
+.statline{font-size:14px;color:var(--mute)}
+.statline b{color:var(--tealtx);background:var(--tealbg);padding:2px 12px;border-radius:999px;margin-left:6px;font-weight:700}
+.stage{display:grid;grid-template-columns:1.1fr .9fr;gap:0}
+.screen{padding:22px;background:var(--lane2);border-right:1px solid var(--line);min-height:430px}
+.info{padding:22px 24px}
+.who{display:inline-block;font-size:13px;font-weight:700;padding:2px 12px;border-radius:999px;margin-bottom:10px}
+.who.owner{background:var(--amberbg);color:var(--ambertx)} .who.finder{background:var(--lane);color:var(--ink)}
+.who.staff{background:var(--tealbg);color:var(--tealtx)} .who.system{background:var(--hero);color:var(--herotx)}
+.info h3{margin:0 0 10px;font-size:22px;line-height:1.35}
+.info p{margin:0 0 14px}
+.behind{background:var(--lane2);border:1px dashed var(--line2);border-radius:12px;padding:10px 14px;font-size:14px;color:var(--mute)}
+.behind b{color:var(--ink);display:block;margin-bottom:2px;font-size:13px}
+.pnav{display:flex;justify-content:space-between;gap:10px;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+
+/* buttons */
+.btn{border:0;background:var(--teal);color:var(--onteal);padding:9px 20px;border-radius:10px;cursor:pointer;font-weight:700}
+.btn:hover{filter:brightness(1.08)} .btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.sec{background:transparent;color:var(--ink);border:1px solid var(--line2)}
+.btn.amber{background:var(--amber);color:var(--onamber)}
+.btn.bad{background:var(--redbg);color:var(--red)}
+
+/* mock window */
+.win{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;max-width:420px;margin:0 auto 14px;box-shadow:var(--shadow)}
+.win .bar{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:13px;font-weight:700;background:var(--ink);color:var(--card)}
+.win .bar.staff{background:var(--teal);color:var(--onteal)}
+.win .bar small{font-weight:400;opacity:.85}
+.win .body{padding:14px}
+.f{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.f:last-child{border-bottom:0}.f span{color:var(--mute)}.f b{font-weight:500;text-align:right}
+.priv{background:var(--amberbg);color:var(--ambertx);border-radius:10px;padding:8px 12px;font-size:13px;margin:10px 0}
+.priv b{font-weight:700}
+.field{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--lane2);margin:4px 0 8px}
+.res{margin-top:12px;border-radius:12px;padding:10px 14px;background:var(--tealbg);color:var(--tealtx);font-weight:500;animation:pop .35s ease}
+.res.warn{background:var(--amberbg);color:var(--ambertx)}
+@keyframes pop{from{transform:scale(.97);opacity:0}to{transform:none;opacity:1}}
+.tag{display:inline-block;background:var(--amber);color:var(--onamber);font-weight:700;padding:6px 16px 6px 30px;border-radius:6px 18px 18px 6px;position:relative;font-variant-numeric:tabular-nums}
+.tag::before{content:"";position:absolute;left:11px;top:50%;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;background:var(--card)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.cmp div{background:var(--lane2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px}
+.cmp div small{display:block;color:var(--mute);margin-bottom:2px}
+.ok{color:var(--teal);font-weight:700}
+.code{font-size:34px;font-weight:700;letter-spacing:.14em;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink);padding:6px 0}
+.chk{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:14px}
+.chk input{width:20px;height:20px;accent-color:var(--teal)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+.chips button{border:1px solid var(--line2);background:var(--card);border-radius:999px;padding:3px 14px;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:6px}
+.rule{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.rule h3{margin:0 0 6px;font-size:17px}.rule p{margin:0;color:var(--mute);font-size:15px}
+.deadline{margin-top:18px;background:var(--amberbg);color:var(--ambertx);border-radius:14px;padding:14px 18px}
+.deadline b{display:block;margin-bottom:2px}
+footer{padding:30px 0 40px;color:var(--mute);font-size:14px}
+
+@media (max-width:820px){
+  .stage{grid-template-columns:1fr}
+  .screen{border-right:0;border-bottom:1px solid var(--line);min-height:0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <h1 id="h1"></h1>
+      <p id="h1sub"></p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><a id="appLink" href="/home" style="color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:6px 16px;text-decoration:none;font-weight:700"></a><div class="lang" role="group" aria-label="Language">
+      <button id="bEn" type="button">English</button>
+      <button id="bJa" type="button">日本語</button>
+    </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2 id="s1t"></h2>
+    <p class="lead" id="s1p"></p>
+    <div class="diagram" id="diagram"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section id="walk">
+    <h2 id="s2t"></h2>
+    <p class="lead" id="s2p"></p>
+    <div class="player">
+      <div class="pbar"><div class="dots" id="dots"></div><div class="statline" id="statline"></div></div>
+      <div class="stage"><div class="screen" id="screen"></div><div class="info" id="info"></div></div>
+      <div class="pnav"><button class="btn sec" id="prev" type="button"></button><button class="btn amber" id="next" type="button"></button></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="s3t"></h2>
+    <div class="rules" id="rules"></div>
+    <div class="deadline" id="deadline"></div>
+  </section>
+</main>
+
+<footer><div class="wrap" id="foot"></div></footer>
+
+<script>
+var LANG = 'en';
+try { LANG = localStorage.getItem('lf-demo-lang') || (/(?:^|; )lf-lang=ja/.test(document.cookie) ? 'ja' : /(?:^|; )lf-lang=en/.test(document.cookie) ? 'en' : (navigator.language && navigator.language.indexOf('ja') === 0 ? 'ja' : 'en')); } catch (e) {}
+function L(en, ja) { return LANG === 'ja' ? ja : en; }
+function $(id) { return document.getElementById(id); }
+
+var CUR = 0;
+var DONE = [false,false,false,false,false,false,false,false];
+var HO = { a: false, b: false };
+var GIFT = 0;
+
+/* ---------- the 8 steps ---------- */
+var STEPS = [
+  { who: 'owner', lane: 1,
+    lbl: function(){ return L(['Reports','lost item'], ['なくした物を','届ける']); },
+    status: function(){ return L('Reported','届け出済み'); },
+    title: function(){ return L('Aiko reports her lost wallet','Aikoさんが、なくした財布を届ける'); },
+    what: function(){ return L('Aiko lost her wallet in the library. She opens Report an item, chooses “I lost something”, and says what, where and when. A photo is optional.',
+                               'Aikoさんは図書館で財布をなくしました。「届け出」で「なくしました」をえらび、物・場所・日にちを書きます。写真はなくてもかまいません。'); },
+    behind: function(){ return L('Saved as a lost report that only her own organization can see. Status: Reported.','Aikoさんの組織の中だけで見られる「なくした物」として保存されます。状態：届け出済み。'); },
+    screen: function(d){
+      return win('member','Aiko', L('Member','会員'),
+        f(L('I lost','種類'), L('Something I lost','なくしました')) + f(L('Item','物'), L('Black wallet','黒い財布')) + f(L('Category','カテゴリ'), L('Wallet','財布')) +
+        f(L('Place','場所'), L('Library','図書館')) + f(L('Date','日にち'), '2026-09-24') + f(L('Note','メモ'), L('Black leather, small scratch','黒い革、小さなキズ'))) +
+        (d ? res(L('Report saved. Status: Reported.','届け出を保存しました。状態：届け出済み。')) : act(L('Submit report','届け出を送る')));
+    } },
+  { who: 'finder', lane: 0,
+    lbl: function(){ return L(['Posts','found item'], ['見つけた物を','登録']); },
+    status: function(){ return L('Listed with a code','コードつきで表示'); },
+    title: function(){ return L('Ken finds a wallet and posts it','Kenさんが財布を見つけて、登録する'); },
+    what: function(){ return L('Ken finds a black wallet in the library and posts “I found something”. The item gets a code and is listed for the community. Its colour, brand and marks stay private: only Ken and staff can see them.',
+                               'Kenさんは図書館で黒い財布を見つけ、「見つけました」で登録します。物にはコードがつき、みんなに表示されます。色・ブランド・目印は、Kenさんとスタッフだけが見られます。'); },
+    behind: function(){ return L('Saved as a found item with an item code. Private details are shown only to staff and the finder.','コードつきの「見つけた物」として保存されます。くわしい情報は、スタッフと見つけた人だけが見られます。'); },
+    screen: function(d){
+      return win('member','Ken', L('Member','会員'),
+        f(L('I found','種類'), L('Something I found','見つけました')) + f(L('Item','物'), L('Black wallet','黒い財布')) + f(L('Place','場所'), L('Library','図書館')) + f(L('Date','日にち'), '2026-09-24') +
+        '<div class="priv"><b>' + L('Private details','くわしい情報（非公開）') + '</b><br>' + L('Colour: black · Brand: Tanaka · Mark: scratch on the front','色：黒　ブランド：Tanaka　目印：前に小さなキズ') + '</div>') +
+        (d ? '<div class="res"><span class="tag">LF-2026-0153</span><br>' + L('Listed for the community. Please bring the wallet to the office.','みんなに表示されました。財布を事務所にもっていってください。') + '</div>' : act(L('Post found item','見つけた物を登録')));
+    } },
+  { who: 'system', lane: 2,
+    lbl: function(){ return L(['Finds','a match'], ['一致を','見つける']); },
+    status: function(){ return L('Matched','一致'); },
+    title: function(){ return L('The system finds a possible match','システムが、一致しそうな物を見つける'); },
+    what: function(){ return L('Rules, not AI: same category, same place (pins within 150 m count as the same place) and date. Aiko is told about the match, but she sees only the name, category, place and date. The private details stay hidden.',
+                               'AIではなく、ルールで調べます：同じカテゴリ、同じ場所（150m以内なら同じ場所）、日にち。Aikoさんに一致のお知らせが届きますが、見えるのは名前・カテゴリ・場所・日にちだけです。くわしい情報は見えません。'); },
+    behind: function(){ return L('The two items are linked and Aiko’s report moves to Matched.','2つの物が結びつき、Aikoさんの届け出は「一致」になります。'); },
+    screen: function(d){
+      var tk = d ? ' <span class="ok">✔</span>' : '';
+      var cmp = '<div class="cmp"><div><small>' + L('Aiko lost','Aikoさん（なくした）') + '</small>' + L('Black wallet','黒い財布') + '<br>' + L('Wallet · Library · 09-24','財布・図書館・09-24') + '</div>' +
+                '<div><small>' + L('Ken found','Kenさん（見つけた）') + '</small>' + L('Black wallet','黒い財布') + '<br>' + L('Wallet · Library · 09-24','財布・図書館・09-24') + '</div></div>';
+      var rows = '<div class="f"><span>' + L('Category','カテゴリ') + '</span><b>' + L('Same','同じ') + tk + '</b></div><div class="f"><span>' + L('Place','場所') + '</span><b>' + L('Same','同じ') + tk + '</b></div><div class="f"><span>' + L('Date','日にち') + '</span><b>' + L('Same','同じ') + tk + '</b></div>';
+      var note = d ? win('member','Aiko', L('Notification','お知らせ'),
+        '<b>' + L('Possible match found','一致しそうな物があります') + '</b>' +
+        f(L('Item','物'), L('Black wallet','黒い財布')) + f(L('Category','カテゴリ'), L('Wallet','財布')) + f(L('Place','場所'), L('Library','図書館')) + f(L('Date','日にち'), '2026-09-24') +
+        '<div class="priv">' + L('🔒 Colour, brand and marks are hidden.','🔒 色・ブランド・目印は表示されません。') + '</div>') : '';
+      return win('system','System', L('Matching','一致チェック'), cmp + rows) + (d ? note : act(L('Run matching','一致を調べる')));
+    } },
+  { who: 'owner', lane: 1,
+    lbl: function(){ return L(['Claims','the item'], ['「私の」と','伝える']); },
+    status: function(){ return L('Claim pending','請求：確認待ち'); },
+    title: function(){ return L('Aiko says “this is mine”','Aikoさんが「私のです」と伝える'); },
+    what: function(){ return L('Aiko presses “This is mine” and describes the wallet in her own words. She can’t see the private details, so only the real owner can answer correctly. Ken is told that someone claimed it.',
+                               'Aikoさんは「私のものです」をおして、財布の特ちょうを自分の言葉で書きます。くわしい情報は見られないので、本当の持ち主だけが正しく答えられます。Kenさんには、請求があったことが知らされます。'); },
+    behind: function(){ return L('A claim is saved with status Pending, and the finder gets a notification.','請求が「確認待ち」で保存され、見つけた人に通知が届きます。'); },
+    screen: function(d){
+      return win('member','Aiko', L('Claim','請求'),
+        '<div class="f"><span>' + L('Item','物') + '</span><b>' + L('Black wallet · Library','黒い財布・図書館') + '</b></div>' +
+        '<div style="font-size:13px;color:var(--mute);margin-top:8px">' + L('Describe it: colour, brand, marks, what is inside','色・ブランド・目印・中に入っている物を書いてください') + '</div>' +
+        '<div class="field">' + L('Black. Brand is Tanaka. A scratch on the front, and a library card inside.','黒です。ブランドはTanaka。前に小さなキズがあって、図書館のカードが入っています。') + '</div>') +
+        (d ? res(L('Claim sent. Status: Pending. Ken has been notified.','請求を送りました。状態：確認待ち。Kenさんに通知しました。')) : act(L('Send claim','請求を送る')));
+    } },
+  { who: 'staff', lane: 3,
+    lbl: function(){ return L(['Item handed','to office'], ['事務所に','あずける']); },
+    status: function(){ return L('At the office, shelf A-03','事務所で保管（たなA-03）'); },
+    title: function(){ return L('Ken hands the wallet to the office','Kenさんが財布を事務所にあずける'); },
+    what: function(){ return L('Ken sees the notice and takes the wallet to the office. He presses “Hand over to the office”. Staff confirm they received it and choose a shelf. The item is always kept at the office, never with a member.',
+                               'Kenさんはお知らせを見て、財布を事務所にあずけます。「事務所にわたしました」をおすと、スタッフが受け取りを確認して、たなを決めます。物は必ず事務所で保管し、会員が持ち続けることはありません。'); },
+    behind: function(){ return L('The item is marked received, with the shelf, the staff member and the time.','受け取りと、たな・スタッフ・時間が記録されます。'); },
+    screen: function(d){
+      return win('member','Ken', L('Notification','お知らせ'),
+        '<b>' + L('Someone claimed your item','あなたが見つけた物に、請求がありました') + '</b><div style="font-size:14px;color:var(--mute)">' + L('Please give the wallet to the office, then press the button.','事務所に財布をわたして、ボタンをおしてください。') + '</div>' +
+        '<div style="margin-top:8px"><span class="btn sec" style="display:inline-block;padding:5px 14px">' + L('Hand over to the office','事務所にわたしました') + '</span></div>') +
+        win('staff','Sara', L('Staff · Front desk','スタッフ・受付'),
+        f(L('Item','物'), L('Black wallet (from Ken)','黒い財布（Kenさん）')) + f(L('Shelf','たな'), 'A-03')) +
+        (d ? res(L('Received at the office. Shelf A-03, confirmed by Sara.','事務所で受け取りました。たなA-03、Saraさんが確認。')) : act(L('Confirm received','受け取りを確認')));
+    } },
+  { who: 'staff', lane: 3,
+    lbl: function(){ return L(['Checks &','approves'], ['確認して','承認']); },
+    status: function(){ return L('Approved','承認'); },
+    title: function(){ return L('Staff check the answers and approve','スタッフが答えを調べて、承認する'); },
+    what: function(){ return L('Sara opens the Front desk and compares Aiko’s answer with the private details Ken wrote. If they match, she approves the claim, and Aiko gets a 6-digit pickup code.',
+                               'Saraさんは受付の画面で、Aikoさんの答えと、Kenさんが書いたくわしい情報を見くらべます。合っていれば承認し、Aikoさんに6けたの受け取りコードが出ます。'); },
+    behind: function(){ return L('The claim becomes Approved and the pickup code is saved with it.','請求が「承認」になり、受け取りコードが保存されます。'); },
+    screen: function(d){
+      var cmp = '<div class="cmp"><div><small>' + L('Aiko’s answer','Aikoさんの答え') + '</small>' + L('Black','黒') + ' <span class="ok">✔</span><br>' + L('Tanaka','Tanaka') + ' <span class="ok">✔</span><br>' + L('Scratch, library card','キズ・図書館カード') + ' <span class="ok">✔</span></div>' +
+                '<div><small>' + L('Ken’s private details','Kenさんの情報') + '</small>' + L('Black','黒') + '<br>' + L('Tanaka','Tanaka') + '<br>' + L('Scratch on the front','前に小さなキズ') + '</div></div>';
+      var pass = d ? win('member','Aiko', L('Pickup pass','受け取りパス'), '<div style="text-align:center;color:var(--mute);font-size:13px">' + L('Show this code and a photo ID at the office','このコードと写真つき身分証を事務所で見せる') + '</div><div class="code">482 910</div>') : '';
+      return win('staff','Sara', L('Staff · Front desk','スタッフ・受付'), '<b>' + L('Verify claim','請求を確認') + '</b>' + cmp) +
+        (d ? pass : '<button class="btn" data-act="1">' + L('Approve','承認する') + '</button> <button class="btn bad" type="button" data-rej="1">' + L('Reject','却下する') + '</button>');
+    } },
+  { who: 'staff', lane: 3,
+    lbl: function(){ return L(['Hands over','(ID + code)'], ['返す','（ID＋コード）']); },
+    status: function(){ return L('Returned','返却済み'); },
+    title: function(){ return L('Aiko collects it with her code and ID','Aikoさんがコードと身分証で受け取る'); },
+    what: function(){ return L('Aiko goes to the office with her pickup code and a photo ID. Staff enter the code, check the name and the face on the ID, and only then hand over the wallet.',
+                               'Aikoさんは受け取りコードと写真つきの身分証を持って事務所へ行きます。スタッフはコードを入力し、身分証の名前と顔を確認してから、財布をわたします。'); },
+    behind: function(){ return L('The claim becomes Returned. The ID type, the time and the staff member are recorded.','請求が「返却済み」になり、身分証の種類・時間・スタッフが記録されます。'); },
+    screen: function(d){
+      var body = '<b>' + L('Hand over','返却') + '</b>' + f(L('Pickup code','受け取りコード'), '<b class="ok">482 910 ✔</b>') + f(L('ID shown','提示された身分証'), L('Student ID','学生証')) +
+        '<label class="chk"><input type="checkbox" data-ho="a"' + (HO.a ? ' checked' : '') + (d ? ' disabled' : '') + '> ' + L('Name on the ID matches','身分証の名前が合っている') + '</label>' +
+        '<label class="chk"><input type="checkbox" data-ho="b"' + (HO.b ? ' checked' : '') + (d ? ' disabled' : '') + '> ' + L('Face matches the ID photo','顔が身分証の写真と合っている') + '</label>';
+      return win('staff','Sara', L('Staff · Handover','スタッフ・返却'), body) +
+        (d ? '<div class="res"><span class="ok">✔</span> ' + L('Handed over to Aiko. Status: Returned.','Aikoさんにわたしました。状態：返却済み。') + '</div>'
+           : '<button class="btn" data-act="1"' + (HO.a && HO.b ? '' : ' disabled') + '>' + L('Confirm handover','返却を確定') + '</button>' + ((HO.a && HO.b) ? '' : ' <span style="font-size:13px;color:var(--mute)">' + L('Tick both checks first','先に2つのチェックをしてください') + '</span>'));
+    } },
+  { who: 'owner', lane: 1,
+    lbl: function(){ return L(['Sends','thanks'], ['お礼を','送る']); },
+    status: function(){ return L('Returned and thanked','返却済み・お礼つき'); },
+    title: function(){ return L('Aiko thanks Ken','AikoさんがKenさんにお礼を送る'); },
+    what: function(){ return L('After the return, Aiko can send Ken a thank-you letter, and add an e-gift card if she wants. It is her choice. It goes straight from owner to finder, and the office is not involved.',
+                               '返したあと、Aikoさんは、Kenさんにお礼の手紙を送れます。気持ちがあれば、電子ギフトもつけられます。送るかどうかは持ち主の自由で、手紙は持ち主から見つけた人へ直接とどきます。事務所は関係しません。'); },
+    behind: function(){ return L('One letter is saved per returned claim, for the finder to read.','返却した請求ごとに、お礼の手紙が1つ保存されます。'); },
+    screen: function(d){
+      var chips = '<div class="chips">' + [[0, L('Letter only','手紙だけ')], [500, '¥500'], [1000, '¥1,000']].map(function(g){ return '<button type="button" data-gift="' + g[0] + '" aria-pressed="' + (GIFT === g[0]) + '">' + g[1] + '</button>'; }).join('') + '</div>';
+      return win('member','Aiko', L('Thank-you letter','お礼の手紙'),
+        '<div class="field">' + L('Dear Ken, thank you for finding my wallet and taking it to the office. It means a lot to me. Aiko','Kenさんへ。財布を見つけて、事務所にとどけてくれて、ありがとうございました。とても助かりました。Aiko') + '</div>' +
+        '<div style="font-size:13px;color:var(--mute)">' + L('E-gift card (optional)','電子ギフト（任意）') + '</div>' + chips) +
+        (d ? res(L('Sent to Ken' + (GIFT ? ' with a ¥' + GIFT.toLocaleString() + ' e-gift' : '') + '. Thank you for using Lost & Found.','Kenさんに送りました' + (GIFT ? '（' + GIFT.toLocaleString() + '円の電子ギフトつき）' : '') + '。ご利用ありがとうございました。')) : act(L('Send thanks','お礼を送る')));
+    } }
+];
+
+/* ---------- small html helpers ---------- */
+function f(k, v) { return '<div class="f"><span>' + k + '</span><b>' + v + '</b></div>'; }
+function win(kind, name, role, body) {
+  return '<div class="win"><div class="bar ' + (kind === 'staff' ? 'staff' : '') + '"><span>' + name + '</span><small>' + role + '</small></div><div class="body">' + body + '</div></div>';
+}
+function act(label) { return '<button class="btn" data-act="1" type="button">' + label + '</button>'; }
+function res(text) { return '<div class="res"><span class="ok">✔</span> ' + text + '</div>'; }
+
+/* ---------- process diagram (swimlanes) ---------- */
+function renderDiagram() {
+  var lanes = [
+    L(['Finder','the person who found it'], ['見つけた人','']), L(['Owner','the person who lost it'], ['持ち主','なくした人']),
+    L(['System',''], ['システム','']), L(['Staff','at the office'], ['スタッフ','事務所'])
+  ];
+  var laneNames = [ [L('Finder','見つけた人'), L('found it','拾った人')], [L('Owner','持ち主'), L('lost it','なくした人')], [L('System','システム'), L('automatic','自動')], [L('Staff','スタッフ'), L('at the office','事務所')] ];
+  var top0 = 16, lh = 98, x0 = 200, dx = 104, r = 20;
+  var svg = '<svg viewBox="0 0 1000 412" role="img" aria-label="' + L('Process diagram: eight steps across four roles','流れの図：4つの役割と8つのステップ') + '">';
+  svg += '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>';
+  for (var i = 0; i < 4; i++) {
+    var ty = top0 + i * lh;
+    svg += '<rect class="lane-bg' + (i % 2 ? ' alt' : '') + '" x="8" y="' + ty + '" width="984" height="' + (lh - 4) + '" rx="10"/>';
+    svg += '<text class="lane-t" x="24" y="' + (ty + 32) + '">' + laneNames[i][0] + '</text><text class="lane-s" x="24" y="' + (ty + 50) + '">' + laneNames[i][1] + '</text>';
+  }
+  var pts = STEPS.map(function(s, i) { return { x: x0 + i * dx, y: top0 + s.lane * lh + 30 }; });
+  for (var k = 0; k < pts.length - 1; k++) {
+    var a = pts[k], b = pts[k + 1], mx = (a.x + b.x) / 2;
+    var d = (a.y === b.y) ? 'M' + (a.x + r + 2) + ',' + a.y + ' H' + (b.x - r - 4) : 'M' + (a.x + r + 2) + ',' + a.y + ' H' + mx + ' V' + b.y + ' H' + (b.x - r - 4);
+    svg += '<path class="arrow" d="' + d + '" marker-end="url(#ah)" style="color:var(--line2)"/>';
+  }
+  var p8 = pts[7];
+  svg += '<path class="arrow dash" d="M' + p8.x + ',' + (p8.y - r - 4) + ' V' + (top0 + 30 + 12) + '" marker-end="url(#ah)" style="color:var(--amber)"/>';
+  svg += '<text class="note-t" x="' + (p8.x - 12) + '" y="' + (top0 + lh + 2) + '" text-anchor="end">' + L('thank-you letter to the finder','見つけた人へ、お礼の手紙') + '</text>';
+  STEPS.forEach(function(s, i) {
+    var p = pts[i], cls = DONE[i] ? 'done' : (i === CUR ? 'now' : '');
+    if (i === CUR) cls = 'now';
+    var lines = s.lbl();
+    svg += '<g class="node ' + cls + '" data-go="' + i + '" tabindex="0" role="button" aria-label="' + L('Step ','ステップ') + (i + 1) + ': ' + lines.join(' ') + '"><circle cx="' + p.x + '" cy="' + p.y + '" r="' + r + '"/><text class="n" x="' + p.x + '" y="' + (p.y + 5.5) + '">' + (i + 1) + '</text></g>';
+    svg += '<text class="lbl" x="' + p.x + '" y="' + (p.y + 38) + '">' + lines[0] + '</text><text class="lbl" x="' + p.x + '" y="' + (p.y + 52) + '">' + lines[1] + '</text>';
+  });
+  svg += '</svg>';
+  $('diagram').innerHTML = svg;
+}
+
+/* ---------- walkthrough ---------- */
+function statusNow() {
+  if (DONE[CUR]) return STEPS[CUR].status();
+  return CUR === 0 ? L('Not started','まだ') : STEPS[CUR - 1].status();
+}
+function whoLabel(w) { return { owner: L('Owner','持ち主'), finder: L('Finder','見つけた人'), staff: L('Staff','スタッフ'), system: L('System','システム') }[w]; }
+
+function renderStage() {
+  var s = STEPS[CUR];
+  var dots = '';
+  for (var i = 0; i < 8; i++) dots += '<button type="button" class="dot ' + (i === CUR ? 'now' : (DONE[i] ? 'done' : '')) + '" data-go="' + i + '" aria-label="' + L('Step ','ステップ') + (i + 1) + '"' + (i === CUR ? ' aria-current="step"' : '') + '>' + (i + 1) + '</button>';
+  $('dots').innerHTML = dots;
+  $('statline').innerHTML = L('Item status','物の状態') + '<b>' + statusNow() + '</b>';
+  $('screen').innerHTML = s.screen(DONE[CUR]);
+  $('info').innerHTML = '<span class="who ' + s.who + '">' + whoLabel(s.who) + '</span><h3>' + s.title() + '</h3><p>' + s.what() + '</p>' +
+    '<div class="behind"><b>' + L('Behind the scenes','システムの中では') + '</b>' + s.behind() + '</div>';
+  $('prev').textContent = L('Back','もどる');
+  $('prev').disabled = CUR === 0;
+  $('next').textContent = CUR === 7 ? L('Start over','はじめから') : L('Next step','つぎへ');
+}
+
+function render() { renderDiagram(); renderStage(); renderStatic(); }
+
+function renderStatic() {
+  document.documentElement.lang = LANG;
+  $('bEn').setAttribute('aria-pressed', LANG === 'en'); $('bJa').setAttribute('aria-pressed', LANG === 'ja');
+  $('h1').textContent = L('How Lost & Found works','落とし物システムのしくみ');
+  $('appLink').textContent = L('Open the app →','アプリを開く →');
+  $('h1sub').textContent = L('A school, company or store keeps its lost property in one place. See how a lost wallet gets back to its owner, step by step.','学校・会社・店が、落とし物を1つの場所で管理します。なくした財布が持ち主にもどるまでを、順番に見てみましょう。');
+  $('s1t').textContent = L('The whole process on one page','全体の流れ');
+  $('s1p').textContent = L('Four roles, eight steps. Select a number to jump to that step in the demo below.','4つの役割と8つのステップです。数字をおすと、下のデモのそのステップに移ります。');
+  $('legend').innerHTML = '<span><i style="background:var(--teal)"></i>' + L('Done','終わった') + '</span><span><i style="background:var(--amber)"></i>' + L('You are here','いまここ') + '</span><span><i style="border:2px solid var(--line2)"></i>' + L('Coming next','これから') + '</span>';
+  $('s2t').textContent = L('Try it: follow one wallet','デモ：1つの財布を追いかける');
+  $('s2p').textContent = L('Press the button on each screen to do that step, as the person in the step. Nothing is saved: it is a demo.','各画面のボタンをおして、そのステップを進めてください。保存はされません。これはデモです。');
+  $('s3t').textContent = L('Rules that keep it safe','安全のためのきまり');
+  var rules = [
+    [L('Private details stay private','くわしい情報は見せない'), L('Colour, brand and marks are seen only by staff and the finder, so only the real owner can describe the item.','色・ブランド・目印は、スタッフと見つけた人だけが見られます。だから、本当の持ち主だけが答えられます。')],
+    [L('Items stay at the office','物は事務所で保管'), L('A finder always hands the item to the office. Members never keep it while the owner is found.','見つけた人は、必ず事務所にあずけます。持ち主が見つかるまで、会員が持ち続けることはありません。')],
+    [L('Code plus photo ID','コード＋身分証'), L('The owner shows a 6-digit code and an ID. Staff check the name and the face before handing over.','持ち主は6けたのコードと身分証を見せます。スタッフは名前と顔を確認してからわたします。')],
+    [L('Only your organization','自分の組織だけ'), L('People see only the items of their own school, company or store.','自分の学校・会社・店の物だけが見られます。')]
+  ];
+  $('rules').innerHTML = rules.map(function(r){ return '<div class="rule"><h3>' + r[0] + '</h3><p>' + r[1] + '</p></div>'; }).join('');
+  $('deadline').innerHTML = '<b>' + L('If nobody claims it','持ち主が見つからないとき') + '</b>' + L('Under Japan’s Lost Property Act (遺失物法), the office reports found items to the police within one week. The Storage page shows each item’s police date, and staff can close an item as handed to the police, donated, recycled or disposed.','日本の遺失物法では、事務所は1週間いないに、拾った物を警察に届けます。保管の画面で、物ごとの警察に届ける日が見られます。スタッフは、警察に届けた・寄付した・リサイクルした・処分した、のどれかで物を終わらせます。');
+  $('foot').textContent = L('Demo of the Lost & Found system built by Cyber6 (graduation project). All names and items are examples.','Cyber6が作っている落とし物システムのデモです（卒業制作）。名前や物はすべて例です。');
+}
+
+function goTo(i) {
+  CUR = Math.max(0, Math.min(7, i));
+  for (var j = 0; j < CUR; j++) DONE[j] = true;
+  render();
+}
+function lang(l) { LANG = l; try { localStorage.setItem('lf-demo-lang', l); } catch (e) {} render(); }
+
+/* ---------- events ---------- */
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  var go = t.closest && t.closest('[data-go]');
+  if (go) { goTo(parseInt(go.getAttribute('data-go'), 10)); if (go.classList.contains('node')) $('walk').scrollIntoView({ block: 'start' }); return; }
+  if (t.closest && t.closest('[data-act]')) { DONE[CUR] = true; render(); return; }
+  if (t.closest && t.closest('[data-rej]')) { var box = $('screen'); if (!box.querySelector('.res')) { var d = document.createElement('div'); d.className = 'res warn'; d.textContent = L('In the real app, a rejected claim goes back to the owner and the item stays available. For this demo, press Approve.','本当のアプリでは、却下すると持ち主にもどり、物はそのまま残ります。このデモでは「承認する」をおしてください。'); box.appendChild(d); } return; }
+  var g = t.closest && t.closest('[data-gift]');
+  if (g) { GIFT = parseInt(g.getAttribute('data-gift'), 10); renderStage(); return; }
+});
+document.addEventListener('change', function(e) {
+  var h = e.target.getAttribute && e.target.getAttribute('data-ho');
+  if (h) { HO[h] = e.target.checked; renderStage(); }
+});
+document.addEventListener('keydown', function(e) {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('node')) { e.preventDefault(); goTo(parseInt(e.target.getAttribute('data-go'), 10)); $('walk').scrollIntoView({ block: 'start' }); return; }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight') goTo(CUR + 1);
+  if (e.key === 'ArrowLeft') goTo(CUR - 1);
+});
+$('prev').addEventListener('click', function() { goTo(CUR - 1); });
+$('next').addEventListener('click', function() {
+  if (CUR === 7) { DONE = [false,false,false,false,false,false,false,false]; HO = { a: false, b: false }; GIFT = 0; CUR = 0; render(); return; }
+  DONE[CUR] = true; goTo(CUR + 1);
+});
+$('bEn').addEventListener('click', function() { lang('en'); });
+$('bJa').addEventListener('click', function() { lang('ja'); });
+
+render();
+</script>
+</body>
+</html>

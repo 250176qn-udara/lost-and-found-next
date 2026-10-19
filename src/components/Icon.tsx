@@ -16,6 +16,7 @@ const P: Record<string, string> = {
   users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c.9-3 3.4-4.8 6.5-4.8s5.6 1.8 6.5 4.8M16 4.3a3.5 3.5 0 0 1 0 6.4M18 15.6c1.7.7 2.9 2.2 3.5 4.4',
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7 7 0 0 1-1.7 1l-.3 2h-4l-.3-2a7 7 0 0 1-1.7-1l-1.9.7-2-3.4 1.6-1.2a7 7 0 0 1 0-3L3.4 9.3l2-3.4 1.9.7a7 7 0 0 1 1.7-1l.3-2h4l.3 2a7 7 0 0 1 1.7 1l1.9-.7 2 3.4-1.6 1.2a7 7 0 0 1 0 3z',
   globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18',
+  chat: 'M4 5h16v11H9l-5 4zM8 9.5h8M8 12.5h5',
   bell: 'M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0',
   map: 'M9 4 3.5 6v14L9 18l6 2 5.5-2V4L15 6zM9 4v14M15 6v14',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
@@ -30,6 +31,16 @@ const P: Record<string, string> = {
   out: 'M14 4h5v16h-5M10 16l4-4-4-4M14 12H4',
   scan: 'M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16',
   // item categories
+  laptop: 'M5 6h14v9H5zM3 18h18',
+  chip: 'M8 8h8v8H8zM10 4v4M14 4v4M10 16v4M14 16v4M4 10h4M4 14h4M16 10h4M16 14h4',
+  earphones: 'M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H4zM17 15h3v5h-3z',
+  charger: 'M9 3v5M15 3v5M7 8h10v4a5 5 0 0 1-10 0zM12 17v4',
+  usb: 'M9 3h6v6H9zM8 9h8v9a4 4 0 0 1-8 0zM11 5h.01M13 5h.01',
+  iccard: 'M3.5 6h17v12h-17zM3.5 10h17M7 15h4',
+  umbrella: 'M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9zM12 12v6.5a2 2 0 0 0 4 0',
+  clothing: 'M8 4 4 7l2 4 2-1v10h8V10l2 1 2-4-4-3a4 4 0 0 1-8 0z',
+  book: 'M4 5.5A1.5 1.5 0 0 1 5.5 4H19v14H5.5A1.5 1.5 0 0 0 4 19.5zM4 19.5A1.5 1.5 0 0 0 5.5 21H19v-3',
+  bottle: 'M10 3h4v3l1.5 2.5V20a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V8.5L10 6zM8.5 12h7',
   wallet: 'M4 7.5h14.5a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18V6a1.5 1.5 0 0 1 1.5-1.5H16v3M16 13.5h1.5',
   bag: 'M5 8h14l-1 12H6zM9 8V6.5a3 3 0 0 1 6 0V8',
   electronics: 'M7 3.5h10a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1zM10.5 17.5h3',
@@ -47,10 +58,18 @@ export function Icon({ name, size = 18, style, className }: { name: string; size
   );
 }
 
-const CAT_ICON: Record<string, string> = { Wallet: 'wallet', Bag: 'bag', Electronics: 'electronics', 'ID card': 'idcard', Keys: 'keys', Other: 'other' };
+const CAT_ICON: Record<string, string> = {
+  Smartphone: 'electronics', 'Laptop / tablet': 'laptop', Earphones: 'earphones', 'Charger / cable': 'charger', 'USB / storage': 'usb',
+  Electronics: 'chip', 'ID card': 'idcard', 'IC card / pass': 'iccard', Wallet: 'wallet', Keys: 'keys', Bag: 'bag', Umbrella: 'umbrella',
+  Clothing: 'clothing', 'Textbook / stationery': 'book', 'Water bottle': 'bottle', Other: 'other',
+};
 const CAT_TINT: Record<string, [bg: string, fg: string]> = {
   Wallet: ['#fef3c7', '#b45309'], Bag: ['#e0e7ff', '#4338ca'], Electronics: ['#dbeafe', '#1d4ed8'],
   'ID card': ['#fce7f3', '#be185d'], Keys: ['#dcfce7', '#15803d'], Other: ['#f1f5f9', '#475569'],
+  Smartphone: ['#dbeafe', '#1d4ed8'], 'Laptop / tablet': ['#e0f2fe', '#0369a1'], Earphones: ['#ede9fe', '#6d28d9'],
+  'Charger / cable': ['#fef9c3', '#a16207'], 'USB / storage': ['#ccfbf1', '#0f766e'], 'IC card / pass': ['#ffe4e6', '#be123c'],
+  Umbrella: ['#e0e7ff', '#3730a3'], Clothing: ['#fae8ff', '#a21caf'], 'Textbook / stationery': ['#ffedd5', '#c2410c'],
+  'Water bottle': ['#cffafe', '#0e7490'],
 };
 
 /** A coloured tile with the category's picture. Used instead of a photo. */

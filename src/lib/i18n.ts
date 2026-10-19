@@ -7,7 +7,7 @@ export type T = (key: string, vars?: Record<string, string | number>) => string;
 const J: Record<string, string> = {
   // header, roles, menus
   'Lost & Found': '落とし物管理', 'Language / 言語': 'Language / 言語', 'Change language': '言語を切り替える', 'Log out': 'ログアウト',
-  'Yokohama Demo School': '横浜デモ学園', 'Harbor Mart': 'ハーバーマート', 'Nexa Systems': 'ネクサシステムズ',
+  'Yokohama Demo School': '横浜デモ学園', 'Yokohama System Engineering College': '横浜システム工学院専門学校', 'Harbor Mart': 'ハーバーマート', 'Nexa Systems': 'ネクサシステムズ',
   'Member': '会員', 'Staff': 'スタッフ', 'Org admin': '組織管理者', 'Super admin': 'システム管理者',
   'My page': 'マイページ', 'Report an item': '落とし物を届ける', 'Found items': '拾得物一覧', 'Community': 'コミュニティ',
   'Work queue': '作業リスト', 'Scan item': 'アイテムをスキャン', 'Register found item': '拾得物を登録', 'Verify claims': '請求を確認',
@@ -15,7 +15,7 @@ const J: Record<string, string> = {
 
   // item steps, categories, places, organization types
   'Reported': '届出済み', 'Received at office': '事務所で受領', 'Matched': '一致', 'Verified': '確認済み', 'Returned': '返却済み',
-  'Wallet': '財布', 'Bag': 'かばん', 'Electronics': '電子機器', 'ID card': '身分証', 'Keys': '鍵', 'Other': 'その他', 'All': 'すべて',
+  'Wallet': '財布', 'Bag': 'かばん', 'Electronics': 'その他の電子機器', 'ID card': '学生証・身分証', 'Keys': '鍵', 'Other': 'その他', 'All': 'すべて',
   'Library': '図書館', 'Gym': '体育館', 'Room 302': '302教室', 'Entrance': '入口', 'Cafeteria': '食堂',
   'School': '学校', 'Store': '店舗', 'Company': '会社',
 
@@ -490,6 +490,100 @@ const J: Record<string, string> = {
   'The payment could not be completed. Please try again.': '支払いを完了できませんでした。もう一度お試しください。',
   'Card payments are not set up yet.': 'カード決済はまだ設定されていません。',
   'Thank-you letter sent': 'お礼の手紙を送信', 'Thank-you letter and gift sent': 'お礼の手紙とギフトを送信',
+
+  // questions about a claim
+  'Questions to the claimant': '申請者への質問', 'Messages with the office': '事務所とのメッセージ',
+  'Not sure yet? Ask the claimant a question before you decide.': '判断に迷ったら、決める前に申請者に質問できます。',
+  'If the office has a question about your claim, it appears here.': '事務所から請求について質問があると、ここに表示されます。',
+  'What colour is it exactly?': '正確には何色ですか？', 'What is inside it?': '中に何が入っていますか？',
+  'Where and when did you lose it?': 'いつ、どこでなくしましたか？', 'Can you describe any marks or stickers?': '目印やステッカーについて教えてください。',
+  'Ask the claimant a question': '申請者に質問する', 'Write your reply': '返信を書く', 'You': 'あなた',
+  'Question sent to the claimant': '申請者に質問を送りました', 'Reply sent to the office': '事務所に返信しました',
+  'Please write a message.': 'メッセージを書いてください。', 'This claim is closed.': 'この請求は終了しています。',
+  'New reply': '新しい返信', 'Question from the office': '事務所から質問',
+  'The office asked about your claim': '事務所から請求について質問が届きました', 'A claimant replied to your question': '申請者が質問に返信しました',
+
+  'Claim approved — your pickup code is ready': '請求が承認されました。受け取りコードが届きました',
+  'A pickup code was just sent to the owner. Ask them to open their pickup pass and tell you the code.': '持ち主に受け取りコードを送りました。受け取りパスを開いてコードを伝えてもらってください。',
+
+  'Thank you for your help! The owner was found — please bring the item to the office': 'ご協力ありがとうございます！持ち主が見つかりました。物を事務所へお届けください',
+
+  // office chat
+  'Chat with the lost and found office.': '落とし物の事務所とチャットできます。',
+  'Chat with members. Everyone at the front desk shares this inbox.': '会員とチャットします。受付のスタッフ全員で同じ受信箱を使います。',
+  'Staff and admins of your organization': '組織のスタッフと管理者', 'No messages yet. Write the first one below.': 'まだメッセージはありません。下から送ってください。',
+  'Ask the office anything about your lost or found items.': '落とし物・拾い物について、事務所に何でも聞けます。', 'Read': '既読',
+  'Please bring the item to the office.': '物を事務所にお持ちください。', 'Your item is ready to pick up.': 'お受け取りの準備ができました。',
+  'Could you tell us more about the item?': 'その物についてもう少し教えていただけますか？', 'When is the office open?': '事務所は何時に開いていますか？',
+  'I will come to pick it up today.': '今日受け取りに行きます。', 'Thank you!': 'ありがとうございます！',
+  'Enter to send, Shift+Enter for a new line.': 'Enterで送信、Shift+Enterで改行。', 'New message to…': '新しいメッセージの宛先…',
+  'No conversations yet.': 'まだ会話はありません。', 'No conversation selected.': '会話が選ばれていません。',
+  'Choose a member on the left, or start a new message.': '左から会員を選ぶか、新しいメッセージを始めてください。',
+  'New message from the office': '事務所から新しいメッセージ', 'New message from a member': '会員から新しいメッセージ',
+  'Please choose a member.': '会員を選んでください。',
+
+  // YSE campus places (A号館 / B号館)
+  'Bldg A · Front entrance': 'A号館 玄関', 'Bldg A · Entrance hall 1F': 'A号館 エントランス 1F',
+  'Bldg A · Multi-purpose hall 1F': 'A号館 多目的ホール 1F', 'Bldg A · Lab 2F': 'A号館 ラボ 2F', 'Bldg A · Lab 3F': 'A号館 ラボ 3F',
+  'Bldg A · Terrace': 'A号館 テラス', 'Bldg B · Academic affairs office': 'B号館 教務事務室', 'Bldg B · Lab 1F': 'B号館 ラボ 1F',
+  'Bldg B · Lab 2F': 'B号館 ラボ 2F', 'Bldg B · Lab 3F': 'B号館 ラボ 3F', 'Bldg B · Career center': 'B号館 キャリアセンター',
+  'Bldg B · Learning commons B1F': 'B号館 ラーニング・コモンズ B1F',
+  // item categories for an IT college
+  'Smartphone': 'スマートフォン', 'Laptop / tablet': 'ノートPC・タブレット', 'Earphones': 'イヤホン・ヘッドホン',
+  'Charger / cable': '充電器・ケーブル', 'USB / storage': 'USBメモリ・記憶媒体', 'IC card / pass': '交通系IC・定期券',
+  'Umbrella': '傘', 'Clothing': '衣類', 'Textbook / stationery': '教科書・文房具', 'Water bottle': '水筒・ボトル',
+
+  'List': 'リスト', 'Photos': '写真',
+
+  'Open in Messages': 'メッセージで開く',
+
+  'The item must be received at the office first.': '先に物を事務所で受領（棚を登録）してください。',
+  'Enter the 6-digit pickup code the owner tells you.': '持ち主から聞いた6桁の受け取りコードを入力してください。',
+  'Tick every check above.': '上のチェックをすべて付けてください。',
+  'Confirm the item is at the office': '物が事務所にあることを確認（棚を登録）',
+
+  'React to this letter': 'この手紙にリアクション', 'React': 'リアクション', 'Remove reaction': 'リアクションを取り消す',
+  'Your reaction was sent to the owner': 'リアクションを持ち主に送りました', 'The finder reacted': '発見者がリアクションしました',
+  'The finder reacted to your thank-you letter': '発見者があなたのお礼の手紙にリアクションしました',
+  'Unknown reaction.': '不明なリアクションです。', 'Letter not found.': '手紙が見つかりません。',
+
+  'You claimed this': '請求済み',
+  'Approved — bring your photo ID and pickup code to the office.': '承認されました。身分証と受け取りコードを持って事務所へお越しください。',
+  'Staff are checking your answers. You will get a notification.': 'スタッフが回答を確認しています。結果は通知でお知らせします。',
+  'Your earlier claim was not approved. You can claim again with more details.': '前回の請求は承認されませんでした。詳しく書いてもう一度請求できます。',
+
+  // journey + next step
+  'Claimed': '請求',
+  'At the office': '事務所で保管', 'Thanked': 'お礼', 'Your turn': 'あなたの番', 'The finder': '見つけた人', 'The owner': '持ち主',
+  'Automatic': '自動', 'Done': '完了', 'Read the letter': '手紙を読む',
+  'All done. Thank you for using Lost & Found!': 'すべて完了しました。ご利用ありがとうございました！',
+  'Go to the office with your pickup code and a photo ID.': '受け取りコードと写真つき身分証を持って事務所へ行きましょう。',
+  'The finder is bringing it to the office. We will tell you when you can pick it up.': '見つけた人が事務所に届けています。受け取れるようになったらお知らせします。',
+  'Staff are checking your answers. If they ask a question, it appears in Messages.': 'スタッフが答えを確認しています。質問があればメッセージに届きます。',
+  'Your claim was not approved. You can claim again with more details.': '請求は承認されませんでした。詳しく書いてもう一度請求できます。',
+  'Check the possible match. If it is yours, press “This is mine”.': '一致しそうな物を確認しましょう。自分の物なら「私のものです」をおしてください。',
+  'We are looking for a match and will notify you. You can also look yourself.': '一致する物を探しています。見つかったらお知らせします。自分で探すこともできます。',
+  'The owner got it back and sent you a thank-you letter.': '持ち主に戻り、お礼の手紙が届いています。',
+  'Returned to its owner. Thank you for your help!': '持ち主に戻りました。ご協力ありがとうございました！',
+  'Someone claimed it. Please bring it to the office.': '請求がありました。事務所に届けてください。',
+  'Staff will confirm that they received it.': 'スタッフが受け取りを確認します。',
+  'Staff are checking the owner’s answers.': 'スタッフが持ち主の答えを確認しています。',
+  'Waiting for the owner to pick it up at the office.': '持ち主が事務所に受け取りに来るのを待っています。',
+  'It is safe at the office. Waiting for the owner.': '事務所で安全に保管しています。持ち主を待っています。',
+  'Waiting for the owner. Keep it safe, or hand it to the office any time.': '持ち主を待っています。大切に保管するか、いつでも事務所に届けてください。',
+  'Closed without the owner (see the record above).': '持ち主に返さずに終了しました（上の記録を参照）。', 'Returned to its owner.': '持ち主に返却しました。',
+  'The finder says it is at the office. Confirm it and choose a shelf.': '見つけた人が事務所に届けたと言っています。確認して棚を選んでください。',
+  'Compare the claimant’s answers with the private details, then approve or reject.': '申請者の答えと非公開の特徴を見くらべて、承認か却下をしてください。',
+  'Waiting for the owner. When they come, check the pickup code and ID.': '持ち主を待っています。来たら受け取りコードと身分証を確認してください。',
+  'Waiting for the finder to bring it to the office.': '見つけた人が事務所に届けるのを待っています。',
+  'The finder still has it. No one has claimed it yet.': '見つけた人が持っています。まだ請求はありません。',
+  'Stored at the office. Waiting for the owner to claim it.': '事務所で保管中。持ち主の請求を待っています。',
+
+  'Try the interactive guide': 'インタラクティブガイドを試す', 'Start': 'はじめる',
+  'Follow one lost wallet from report to return, step by step. Takes about 2 minutes.': 'なくした財布が届け出から返却されるまでを、1ステップずつ追いかけます。約2分です。',
+  'New here? See how it works': 'はじめての方へ：しくみを見てみましょう',
+  'A 2-minute interactive guide: how a lost item gets back to its owner.': '落とし物が持ち主にもどるまでを、2分でわかるインタラクティブガイドです。',
+  'How does it work? See the 2-minute guide': 'しくみは？2分でわかるガイドを見る',
 
   // match errors
   'This match was already removed.': 'この候補はすでに取り消されています。', 'This match is already being claimed.': 'この候補はすでに請求が進んでいます。',

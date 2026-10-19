@@ -17,9 +17,12 @@ export function Nav({ role }: { role: Role }) {
         <div key={g.group}>
           <div className="navgroup">{t(g.group)}</div>
           {g.links.map(([href, label, icon]) => (
-            <Link key={href} href={href} className={isOn(href) ? 'on' : ''}>
-              <Icon name={icon} size={18} />{t(label)}
-            </Link>
+            href.endsWith('.html')
+              // A static page (the interactive guide), not an app route.
+              ? <a key={href} href={href}><Icon name={icon} size={18} />{t(label)}</a>
+              : <Link key={href} href={href} className={isOn(href) ? 'on' : ''}>
+                  <Icon name={icon} size={18} />{t(label)}
+                </Link>
           ))}
         </div>
       ))}

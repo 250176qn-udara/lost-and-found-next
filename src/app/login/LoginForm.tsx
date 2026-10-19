@@ -69,6 +69,9 @@ export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts
         <p style={{ textAlign: 'center', marginTop: 20 }}>
           {t("Don't have an account?")} <Link className="btn sec" href="/signup">{t('Create Account')}</Link>
         </p>
+        <p style={{ textAlign: 'center', margin: '12px 0 0' }}>
+          <a href="/how-it-works.html">{t('How does it work? See the 2-minute guide')} →</a>
+        </p>
       </form>
     </div>
   );

@@ -46,6 +46,7 @@ export function claimRow(r: Record<string, unknown>): Claim {
     answers: String(r.answers),
     status: r.status as Claim['status'],
     claimantName: (r.claimant_name as string) ?? null,
+    claimantId: r.claimant_id === undefined ? undefined : Number(r.claimant_id),
     claimantEmail: (r.claimant_email as string) ?? null,
     lostDescription: (r.lost_description as string) ?? null,
     createdAt: String(r.created_at),

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { decideClaim, handoverClaim } from '@/app/actions';
 import { ID_TYPES } from '@/lib/constants';
@@ -25,7 +26,7 @@ export function DecideButtons({ id }: { id: number }) {
 const CHECKS = ['Photo ID matches the owner', 'Answers match the item'];
 
 /** Handover at the desk: pickup code + ID check. */
-export function HandoverForm({ id, hasCode, ready }: { id: number; hasCode: boolean; ready: boolean }) {
+export function HandoverForm({ id, hasCode, ready, itemId }: { id: number; hasCode: boolean; ready: boolean; itemId?: number }) {
   const t = useT();
   const toast = useToast();
   const [code, setCode] = useState('');
@@ -33,7 +34,12 @@ export function HandoverForm({ id, hasCode, ready }: { id: number; hasCode: bool
   const [idType, setIdType] = useState(ID_TYPES[0]);
   const [err, setErr] = useState('');
   const [busy, start] = useTransition();
-  const ok = ready && done.every(Boolean) && (!hasCode || code.replace(/\D/g, '').length === 6);
+  const codeOk = !hasCode || code.replace(/\D/g, '').length === 6;
+  const ok = ready && done.every(Boolean) && codeOk;
+  // Why the button is still off (first missing step only).
+  const missing = !ready ? 'The item must be received at the office first.'
+    : !codeOk ? 'Enter the 6-digit pickup code the owner tells you.'
+    : !done.every(Boolean) ? 'Tick every check above.' : '';
 
   return (
     <div>
@@ -54,12 +60,18 @@ export function HandoverForm({ id, hasCode, ready }: { id: number; hasCode: bool
         </Field>
       </div>
       <ErrorText msg={t(err)} />
+      {!ready && itemId && (
+        <div className="btnrow" style={{ marginTop: 0, marginBottom: 10 }}>
+          <Link className="btn sec" href={`/register?receive=${itemId}`}>{t('Confirm the item is at the office')}</Link>
+        </div>
+      )}
       <button className="btn" disabled={!ok || busy} onClick={() => start(async () => {
         setErr('');
         const r = await handoverClaim(id, idType, code);
         if (!r.ok) return setErr(r.error);
         toast('Handover recorded');
       })}>{t('Complete handover')}</button>
+      {missing && <p className="meta" style={{ margin: '6px 0 0' }}>{t(missing)}</p>}
     </div>
   );
 }

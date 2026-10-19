@@ -36,10 +36,12 @@ export async function getMyClaims(uid: number): Promise<Claim[]> {
 export async function getBrowseItems(orgId: number, category: string, uid = 0): Promise<Item[]> {
   const byCat = category !== '' && category !== 'All';
   const rows = await all<Record<string, unknown>>(
-    `SELECT id, title, category, place, lat, lng, item_date, status, (photo IS NOT NULL) AS has_photo, (reporter_id = ?) AS mine
+    `SELECT id, title, category, place, lat, lng, item_date, status, (photo IS NOT NULL) AS has_photo, (reporter_id = ?) AS mine,
+            (SELECT c.status FROM claims c WHERE c.found_item_id = items.id AND c.claimant_id = ? AND c.status IN ('pending','approved')
+             ORDER BY c.id DESC LIMIT 1) AS my_claim
      FROM items WHERE organization_id = ? AND kind = 'found' AND status < 5 ${byCat ? 'AND category = ?' : ''}
-     ORDER BY id DESC`, byCat ? [uid, orgId, category] : [uid, orgId]);
-  return rows.map(r => ({ ...itemRow(r), mine: Boolean(Number(r.mine)) }));
+     ORDER BY id DESC`, byCat ? [uid, uid, orgId, category] : [uid, uid, orgId]);
+  return rows.map(r => ({ ...itemRow(r), mine: Boolean(Number(r.mine)), myClaim: (r.my_claim as ClaimStatus) ?? null }));
 }
 
 /** Found items members posted that are still with the finder (not brought to the office yet, not returned). */
@@ -66,7 +68,7 @@ export async function getClaimsQueue(orgId: number): Promise<Claim[]> {
     `SELECT c.id, c.status, c.created_at, c.answers, c.found_item_id, c.decided_at,
             i.title AS item_title, i.place AS item_place, i.item_date, i.item_code, i.shelf,
             i.description AS found_description,
-            u.name AS claimant_name, u.email AS claimant_email,
+            c.claimant_id, u.name AS claimant_name, u.email AS claimant_email,
             l.description AS lost_description, (i.received_at IS NOT NULL) AS at_office, (i.handed_in_at IS NOT NULL) AS handed_in, (c.pickup_code IS NOT NULL) AS has_code, f.name AS finder_name
      FROM claims c
      JOIN items i ON i.id = c.found_item_id
@@ -124,7 +126,7 @@ export async function getItemDetail(id: number, orgId: number): Promise<ItemDeta
 /** Claims on an item (as the found item or as the claimant's lost report). Check the item's organization first. */
 export async function getClaimEvents(itemId: number): Promise<ClaimEvent[]> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT c.id, c.status, c.created_at, c.decided_at, c.returned_at, c.id_type,
+    `SELECT c.id, c.status, c.claimant_id, c.created_at, c.decided_at, c.returned_at, c.id_type,
             u.name AS claimant_name, d.name AS decided_by_name, r.name AS returned_by_name
      FROM claims c
      JOIN users u ON u.id = c.claimant_id
@@ -132,7 +134,7 @@ export async function getClaimEvents(itemId: number): Promise<ClaimEvent[]> {
      LEFT JOIN users r ON r.id = c.returned_by
      WHERE c.found_item_id = ? OR c.lost_item_id = ? ORDER BY c.id`, [itemId, itemId]);
   return rows.map(r => ({
-    id: Number(r.id), status: r.status as ClaimStatus, claimantName: String(r.claimant_name), createdAt: String(r.created_at),
+    id: Number(r.id), status: r.status as ClaimStatus, claimantId: Number(r.claimant_id), claimantName: String(r.claimant_name), createdAt: String(r.created_at),
     decidedAt: s(r.decided_at), decidedByName: s(r.decided_by_name), returnedAt: s(r.returned_at),
     returnedByName: s(r.returned_by_name), idType: s(r.id_type),
   }));
@@ -141,11 +143,11 @@ export async function getClaimEvents(itemId: number): Promise<ClaimEvent[]> {
 export async function getOrgItems(orgId: number): Promise<OrgItem[]> {
   const rows = await all<Record<string, unknown>>(
     `SELECT i.id, i.kind, i.title, i.category, i.place, i.lat, i.lng, i.item_date, i.status, i.item_code, i.shelf, i.created_at,
-            u.name AS reporter_name, IF(i.received_at IS NULL, NULL, DATEDIFF(NOW(), i.received_at)) AS days_kept
+            (i.photo IS NOT NULL) AS has_photo, u.name AS reporter_name, IF(i.received_at IS NULL, NULL, DATEDIFF(NOW(), i.received_at)) AS days_kept
      FROM items i JOIN users u ON u.id = i.reporter_id
      WHERE i.organization_id = ? ORDER BY i.id DESC`, [orgId]);
   return rows.map(r => ({
-    id: Number(r.id), kind: r.kind as Kind, title: String(r.title), category: String(r.category), place: String(r.place),
+    id: Number(r.id), kind: r.kind as Kind, title: String(r.title), hasPhoto: Boolean(Number(r.has_photo)), category: String(r.category), place: String(r.place),
     date: s(r.item_date), status: Number(r.status) as ItemStatus, itemCode: s(r.item_code), shelf: s(r.shelf),
     createdAt: String(r.created_at), reporterName: String(r.reporter_name),
     daysKept: r.days_kept === null ? null : Number(r.days_kept),
@@ -245,8 +247,8 @@ export async function getMemberRows(orgId: number): Promise<MemberRow[]> {
 
 export async function getMemberNotices(uid: number, orgId: number): Promise<Notice[]> {
   const [claims, matches, handedIn, onMyFinds] = await Promise.all([
-    all<{ id: number; status: ClaimStatus; title: string; decided_at: string | null; returned_at: string | null }>(
-      `SELECT c.id, c.status, i.title, c.decided_at, c.returned_at
+    all<{ id: number; status: ClaimStatus; title: string; decided_at: string | null; returned_at: string | null; pickup_code: string | null }>(
+      `SELECT c.id, c.status, i.title, c.decided_at, c.returned_at, c.pickup_code
        FROM claims c JOIN items i ON i.id = c.found_item_id
        WHERE c.claimant_id = ? AND c.status <> 'pending'`, [uid]),
     all<{ id: number; title: string; matched_at: string | null }>(
@@ -257,24 +259,40 @@ export async function getMemberNotices(uid: number, orgId: number): Promise<Noti
        WHERE reporter_id = ? AND organization_id = ? AND kind = 'found' AND received_at IS NOT NULL`, [uid, orgId]),
     // Claims other people sent on found items this member posted (the claimant stays anonymous).
     all<{ id: number; item_id: number; status: ClaimStatus; title: string; created_at: string; decided_at: string | null; at_office: number }>(
-      `SELECT c.id, i.id AS item_id, c.status, i.title, c.created_at, c.decided_at, (i.received_at IS NOT NULL) AS at_office
+      `SELECT c.id, i.id AS item_id, c.status, i.title, c.created_at, c.decided_at, (i.received_at IS NOT NULL OR i.handed_in_at IS NOT NULL) AS at_office
        FROM claims c JOIN items i ON i.id = c.found_item_id
        WHERE i.reporter_id = ? AND i.organization_id = ? AND c.claimant_id <> ?`, [uid, orgId, uid]),
   ]);
   const letters = await all<{ id: number; title: string; created_at: string; gift_amount: number | null }>(
     `SELECT t.id, i.title, t.created_at, t.gift_amount FROM thanks t
      JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id WHERE t.to_user = ?`, [uid]);
-  const list: Notice[] = letters.map(l => ({
+  const list: Notice[] = [];
+  const chat = await one<{ id: number; body: string; created_at: string; claimed: number | null }>(
+    `SELECT m.id, m.body, m.created_at,
+            (SELECT c.id FROM claims c WHERE c.found_item_id = m.item_id AND c.claimant_id = m.member_id LIMIT 1) AS claimed
+     FROM office_messages m
+     WHERE m.organization_id = ? AND m.member_id = ? AND m.from_staff = 1 AND m.read_at IS NULL ORDER BY m.id DESC LIMIT 1`, [orgId, uid]);
+  if (chat) list.push({
+    id: `om${chat.id}`, title: chat.claimed ? 'The office asked about your claim' : 'New message from the office',
+    text: chat.body.slice(0, 80), at: chat.created_at, href: '/messages',
+  });
+  const reacted = await all<{ id: number; title: string; reaction: string; reacted_at: string }>(
+    `SELECT t.id, i.title, t.reaction, t.reacted_at FROM thanks t
+     JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id
+     WHERE t.from_user = ? AND t.reaction IS NOT NULL`, [uid]);
+  for (const r of reacted) list.push({ id: `rx${r.id}-${r.reacted_at}`, title: 'The finder reacted to your thank-you letter', text: `${r.reaction} ${r.title}`, at: r.reacted_at, href: '/my-items?tab=thanks' });
+  list.push(...letters.map(l => ({
     id: `ty${l.id}`, title: l.gift_amount ? 'You received a thank-you letter and a gift' : 'You received a thank-you letter',
     text: l.title, at: l.created_at, href: '/my-items?tab=thanks',
-  }));
+  })));
   for (const c of onMyFinds) {
     list.push({ id: `fc${c.id}`, title: 'Someone has claimed the item you reported', text: c.title, at: c.created_at, href: `/items/${c.item_id}` });
     if (c.status === 'approved' && !Number(c.at_office))
-      list.push({ id: `fa${c.id}`, title: 'The owner was confirmed. Please hand the item to the office', text: c.title, at: c.decided_at ?? c.created_at, href: `/items/${c.item_id}` });
+      list.push({ id: `fa${c.id}`, title: 'Thank you for your help! The owner was found — please bring the item to the office', text: c.title, at: c.decided_at ?? c.created_at, href: `/items/${c.item_id}` });
   }
   for (const c of claims) {
-    if (c.status === 'approved') list.push({ id: `ca${c.id}`, title: 'Claim approved', text: c.title, at: c.decided_at ?? '', href: '/my-items?tab=claims' });
+    // The pickup code goes to the claimant automatically (only they receive this notification).
+    if (c.status === 'approved') list.push({ id: `ca${c.id}`, title: 'Claim approved — your pickup code is ready', text: c.pickup_code ? `${c.title} · ${c.pickup_code}` : c.title, at: c.decided_at ?? '', href: '/my-items?tab=claims' });
     if (c.status === 'rejected') list.push({ id: `cr${c.id}`, title: 'Claim rejected', text: c.title, at: c.decided_at ?? '', href: '/my-items' });
     if (c.status === 'returned') list.push({ id: `rt${c.id}`, title: 'Item returned to you', text: c.title, at: c.returned_at ?? '', href: '/my-items?tab=claims' });
   }
@@ -293,9 +311,14 @@ export async function getStaffNotices(orgId: number): Promise<Notice[]> {
        FROM claims c JOIN items i ON i.id = c.found_item_id
        WHERE i.organization_id = ? AND c.status IN ('pending','approved')`, [orgId]),
   ]);
-  const list: Notice[] = items.map(i => i.handed_in_at
+  const list: Notice[] = [];
+  const chats = await all<{ id: number; member_id: number; name: string; created_at: string }>(
+    `SELECT MAX(m.id) AS id, m.member_id, u.name, MAX(m.created_at) AS created_at FROM office_messages m JOIN users u ON u.id = m.member_id
+     WHERE m.organization_id = ? AND m.from_staff = 0 AND m.read_at IS NULL GROUP BY m.member_id, u.name`, [orgId]);
+  for (const c of chats) list.push({ id: `om${c.id}`, title: 'New message from a member', text: c.name, at: c.created_at, href: `/messages?with=${c.member_id}` });
+  list.push(...items.map(i => i.handed_in_at
     ? { id: `hd${i.id}`, title: 'A finder handed an item to the office. Please confirm it', text: i.title, at: i.handed_in_at, href: '/desk?tab=finders' }
-    : { id: `q${i.id}`, title: 'A member posted a found item', text: i.title, at: i.created_at, href: `/items/${i.id}` });
+    : { id: `q${i.id}`, title: 'A member posted a found item', text: i.title, at: i.created_at, href: `/items/${i.id}` }));
   for (const c of claims) {
     list.push(c.status === 'pending'
       ? { id: `cp${c.id}`, title: 'Claim waiting for verification', text: c.title, at: c.created_at, href: '/desk' }
@@ -351,21 +374,22 @@ export async function getPlaces(orgId: number): Promise<Place[]> {
 // ---------- thank-you letters ----------
 
 export type Thanks = {
-  id: number; claimId: number; itemTitle: string; message: string; card: string; fromName: string | null; toName: string;
+  id: number; claimId: number; itemId: number; itemTitle: string; message: string; card: string; fromName: string | null; toName: string;
   giftBrand: string | null; giftAmount: number | null; giftCode: string | null; createdAt: string; readAt: string | null;
+  reaction: string | null; reactedAt: string | null;
 };
 
 const thanksRow = (r: Record<string, unknown>): Thanks => ({
-  id: Number(r.id), claimId: Number(r.claim_id), itemTitle: String(r.item_title), message: String(r.message), card: String(r.card),
+  id: Number(r.id), claimId: Number(r.claim_id), itemId: Number(r.item_id), itemTitle: String(r.item_title), message: String(r.message), card: String(r.card),
   fromName: Number(r.show_name) ? String(r.from_name) : null, toName: String(r.to_name),
   giftBrand: s(r.gift_brand), giftAmount: r.gift_amount === null ? null : Number(r.gift_amount), giftCode: s(r.gift_code),
-  createdAt: String(r.created_at), readAt: s(r.read_at),
+  createdAt: String(r.created_at), readAt: s(r.read_at), reaction: s(r.reaction), reactedAt: s(r.reacted_at),
 });
 
 /** Letters this member received (as finder) or sent (as owner). The gift code is only returned to the finder. */
 export async function getThanks(uid: number): Promise<{ received: Thanks[]; sent: Thanks[] }> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT t.*, i.title AS item_title, fu.name AS from_name, tu.name AS to_name
+    `SELECT t.*, c.found_item_id AS item_id, i.title AS item_title, fu.name AS from_name, tu.name AS to_name
      FROM thanks t
      JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id
      JOIN users fu ON fu.id = t.from_user JOIN users tu ON tu.id = t.to_user
@@ -383,4 +407,64 @@ export async function getUnthankedReturns(uid: number) {
      LEFT JOIN thanks t ON t.claim_id = c.id
      WHERE c.claimant_id = ? AND c.status = 'returned' AND t.id IS NULL AND i.reporter_id <> c.claimant_id
      ORDER BY c.returned_at DESC`, [uid]);
+}
+
+// ---------- questions about a claim (office staff <-> claimant) ----------
+
+export type ClaimMessage = { id: number; claimId: number; fromStaff: boolean; senderName: string; body: string; createdAt: string; readAt: string | null };
+
+/**
+ * Messages about the given claims, oldest first. They live in the claimant's office conversation (Messages page),
+ * tagged with the claimed item, so they show up in both places. Callers make sure the viewer may see these claims.
+ */
+export async function getClaimMessages(claimIds: number[]): Promise<Record<number, ClaimMessage[]>> {
+  const out: Record<number, ClaimMessage[]> = {};
+  if (!claimIds.length) return out;
+  const rows = await all<Record<string, unknown>>(
+    `SELECT m.id, c.id AS claim_id, m.from_staff, m.body, m.created_at, m.read_at, COALESCE(u.name, 'Lost & Found') AS sender_name
+     FROM claims c
+     JOIN items i ON i.id = c.found_item_id
+     JOIN office_messages m ON m.organization_id = i.organization_id AND m.member_id = c.claimant_id AND m.item_id = c.found_item_id
+     LEFT JOIN users u ON u.id = m.sender_id
+     WHERE c.id IN (${claimIds.map(() => '?').join(',')}) ORDER BY m.id`, claimIds);
+  for (const r of rows) {
+    const m: ClaimMessage = {
+      id: Number(r.id), claimId: Number(r.claim_id), fromStaff: Boolean(Number(r.from_staff)), senderName: String(r.sender_name),
+      body: String(r.body), createdAt: String(r.created_at), readAt: s(r.read_at),
+    };
+    (out[m.claimId] ??= []).push(m);
+  }
+  return out;
+}
+
+// ---------- office chat (member <-> the organization's office) ----------
+
+export type OfficeMessage = { id: number; fromStaff: boolean; system: boolean; senderId: number | null; senderName: string | null; body: string; itemId: number | null; createdAt: string; readAt: string | null };
+export type OfficeThread = { memberId: number; name: string; email: string; last: string; lastAt: string; lastFromStaff: boolean; unread: number };
+
+export async function getOfficeMessages(orgId: number, memberId: number): Promise<OfficeMessage[]> {
+  const rows = await all<Record<string, unknown>>(
+    `SELECT m.id, m.from_staff, m.sender_id, m.body, m.item_id, m.created_at, m.read_at, u.name AS sender_name
+     FROM office_messages m LEFT JOIN users u ON u.id = m.sender_id
+     WHERE m.organization_id = ? AND m.member_id = ? ORDER BY m.id`, [orgId, memberId]);
+  return rows.map(r => ({
+    id: Number(r.id), fromStaff: Boolean(Number(r.from_staff)), system: r.sender_id === null,
+    senderId: r.sender_id === null ? null : Number(r.sender_id), senderName: s(r.sender_name),
+    body: String(r.body), itemId: r.item_id === null ? null : Number(r.item_id), createdAt: String(r.created_at), readAt: s(r.read_at),
+  }));
+}
+
+/** The office inbox: one row per member who has a conversation, newest first. */
+export async function getOfficeThreads(orgId: number): Promise<OfficeThread[]> {
+  const rows = await all<Record<string, unknown>>(
+    `SELECT t.member_id, u.name, u.email, lm.body AS last, lm.created_at AS last_at, lm.from_staff AS last_from_staff, t.unread
+     FROM (SELECT member_id, MAX(id) AS last_id, SUM(from_staff = 0 AND read_at IS NULL) AS unread
+           FROM office_messages WHERE organization_id = ? GROUP BY member_id) t
+     JOIN office_messages lm ON lm.id = t.last_id
+     JOIN users u ON u.id = t.member_id
+     ORDER BY lm.id DESC`, [orgId]);
+  return rows.map(r => ({
+    memberId: Number(r.member_id), name: String(r.name), email: String(r.email), last: String(r.last), lastAt: String(r.last_at),
+    lastFromStaff: Boolean(Number(r.last_from_staff)), unread: Number(r.unread ?? 0),
+  }));
 }

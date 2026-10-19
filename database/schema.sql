@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS organization_members (
 
 -- Demo data (all demo passwords are: 123456)
 INSERT IGNORE INTO organizations (id, name, type, description) VALUES
-  (1, 'Yokohama Demo School', 'School',  'Demo school'),
+  (1, 'Yokohama System Engineering College', 'School', '横浜システム工学院専門学校 · 〒241-0826 横浜市旭区東希望が丘128-4'),
   (2, 'Harbor Mart',          'Store',   'Demo store'),
   (3, 'Nexa Systems',         'Company', 'Demo company');
 
@@ -75,11 +75,19 @@ CREATE TABLE IF NOT EXISTS places (
 ) ENGINE=InnoDB;
 
 INSERT IGNORE INTO places (organization_id, name, lat, lng) VALUES
-  (1, 'Library',   35.466200, 139.621800),
-  (1, 'Gym',       35.465600, 139.623100),
-  (1, 'Cafeteria', 35.466000, 139.622600),
-  (1, 'Room 302',  35.466400, 139.622400),
-  (1, 'Entrance',  35.465400, 139.622000),
+-- YSE campus (A号館 / B号館). All start at the campus pin; admins can move each pin in Settings.
+  (1, 'Bldg A · Front entrance', 35.463823, 139.513032),
+  (1, 'Bldg A · Entrance hall 1F', 35.463823, 139.513032),
+  (1, 'Bldg A · Multi-purpose hall 1F', 35.463823, 139.513032),
+  (1, 'Bldg A · Lab 2F', 35.463823, 139.513032),
+  (1, 'Bldg A · Lab 3F', 35.463823, 139.513032),
+  (1, 'Bldg A · Terrace', 35.463823, 139.513032),
+  (1, 'Bldg B · Academic affairs office', 35.463823, 139.513032),
+  (1, 'Bldg B · Lab 1F', 35.463823, 139.513032),
+  (1, 'Bldg B · Lab 2F', 35.463823, 139.513032),
+  (1, 'Bldg B · Lab 3F', 35.463823, 139.513032),
+  (1, 'Bldg B · Career center', 35.463823, 139.513032),
+  (1, 'Bldg B · Learning commons B1F', 35.463823, 139.513032),
   (2, 'Entrance',  35.454900, 139.631300),
   (2, 'Checkout',  35.455100, 139.631600),
   (3, 'Lobby',     35.681200, 139.767100);
@@ -120,10 +128,10 @@ CREATE TABLE IF NOT EXISTS items (
   CONSTRAINT fk_item_received FOREIGN KEY (received_by)     REFERENCES users(id)         ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
--- A couple of demo items for Yokohama Demo School (org 1), reported by Aiko (user 1).
+-- A couple of demo items for the school (org 1), reported by Aiko (user 1).
 INSERT IGNORE INTO items (id, organization_id, reporter_id, kind, title, category, place, item_date, description, status) VALUES
-  (1, 1, 1, 'lost',  'Black wallet',     'Wallet', 'Library', '2026-09-24', 'Black leather wallet, small scratch', 1),
-  (2, 1, 1, 'found', 'Silver earphones', 'Electronics', 'Room 302', '2026-09-26', 'In a small case', 2);
+  (1, 1, 1, 'lost',  'Black wallet',     'Wallet', 'Bldg B · Learning commons B1F', '2026-09-24', 'Black leather wallet, small scratch', 1),
+  (2, 1, 1, 'found', 'Silver earphones', 'Earphones', 'Bldg A · Lab 2F', '2026-09-26', 'In a small case', 2);
 
 -- Found items are registered (status 2, with an item code) as soon as they are reported.
 -- Also run this once on an existing database to update found items reported before this change:
@@ -171,10 +179,30 @@ CREATE TABLE IF NOT EXISTS thanks (
   charge_id    VARCHAR(64) NULL,                  -- PAY.JP charge id
   created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   read_at      TIMESTAMP NULL DEFAULT NULL,
+  reaction     VARCHAR(16) NULL,                  -- the finder's reaction to the letter (an emoji from THANKS_REACTIONS)
+  reacted_at   TIMESTAMP NULL DEFAULT NULL,
   INDEX idx_to (to_user),
   CONSTRAINT fk_thanks_claim FOREIGN KEY (claim_id)  REFERENCES claims(id) ON DELETE CASCADE,
   CONSTRAINT fk_thanks_from  FOREIGN KEY (from_user) REFERENCES users(id)  ON DELETE CASCADE,
   CONSTRAINT fk_thanks_to    FOREIGN KEY (to_user)   REFERENCES users(id)  ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Chat between a member and their organization's office (staff + admins share one inbox).
+CREATE TABLE IF NOT EXISTS office_messages (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
+  member_id       INT UNSIGNED NOT NULL,             -- whose conversation this is
+  sender_id       INT UNSIGNED NULL,                 -- NULL = sent automatically by the system
+  from_staff      TINYINT(1) NOT NULL,               -- 1 = office side, 0 = the member
+  body            TEXT NOT NULL,
+  item_id         INT UNSIGNED NULL,                 -- optional link to an item
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at         TIMESTAMP NULL DEFAULT NULL,       -- when the other side read it
+  INDEX idx_thread (organization_id, member_id, id),
+  CONSTRAINT fk_om_msg_org    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_om_msg_member FOREIGN KEY (member_id)       REFERENCES users(id)         ON DELETE CASCADE,
+  CONSTRAINT fk_om_msg_sender FOREIGN KEY (sender_id)       REFERENCES users(id)         ON DELETE SET NULL,
+  CONSTRAINT fk_om_msg_item   FOREIGN KEY (item_id)         REFERENCES items(id)         ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- Upgrading an existing database (created before handed_in_at existed)? Run this once:
@@ -186,3 +214,15 @@ CREATE TABLE IF NOT EXISTS thanks (
 -- and (created before map pins): run the places / thanks CREATE TABLE blocks above, then
 --   ALTER TABLE items ADD COLUMN lat DECIMAL(9,6) NULL AFTER place, ADD COLUMN lng DECIMAL(9,6) NULL AFTER lat;
 --   UPDATE items i JOIN places p ON p.organization_id = i.organization_id AND p.name = i.place SET i.lat = p.lat, i.lng = p.lng WHERE i.lat IS NULL;
+-- and (approved claims from before pickup codes): give each one a code
+--   UPDATE claims SET pickup_code = LPAD(FLOOR(RAND() * 1000000), 6, '0') WHERE status = 'approved' AND pickup_code IS NULL;
+-- and (switching organization 1 to YSE):
+--   UPDATE organizations SET name = 'Yokohama System Engineering College', description = '横浜システム工学院専門学校 · 〒241-0826 横浜市旭区東希望が丘128-4' WHERE id = 1;
+--   DELETE FROM places WHERE organization_id = 1;  -- then run the INSERT IGNORE INTO places block above
+-- and (created with the old claim_messages table): move claim questions into office chat, then drop it
+--   INSERT INTO office_messages (organization_id, member_id, sender_id, from_staff, body, item_id, created_at, read_at)
+--     SELECT i.organization_id, c.claimant_id, m.sender_id, m.from_staff, m.body, c.found_item_id, m.created_at, m.read_at
+--     FROM claim_messages m JOIN claims c ON c.id = m.claim_id JOIN items i ON i.id = c.found_item_id ORDER BY m.id;
+--   DROP TABLE claim_messages;
+-- and (created before letter reactions):
+--   ALTER TABLE thanks ADD COLUMN reaction VARCHAR(16) NULL AFTER read_at, ADD COLUMN reacted_at TIMESTAMP NULL DEFAULT NULL AFTER reaction;

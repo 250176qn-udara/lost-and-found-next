@@ -12,9 +12,10 @@ import { ActionError, getSession, loadState, requireAdmin, requireLogin, require
 import { all, exec, one, transaction } from '@/lib/db';
 import { DEV_DEFAULT_PASSWORD, DEV_LOGIN } from '@/lib/devlogin';
 import { DISPOSAL_METHODS } from '@/lib/constants';
-import { CARD_DESIGNS, GIFT_AMOUNTS, GIFT_BRANDS } from '@/lib/gifts';
+import { CARD_DESIGNS, GIFT_AMOUNTS, GIFT_BRANDS, THANKS_REACTIONS } from '@/lib/gifts';
 import { giftProviderReady, issueGiftCode } from '@/lib/gift-provider';
 import { charge, refund } from '@/lib/payjp';
+import { APP_URL, sendMail } from '@/lib/mail';
 import { applyMatch, findMatchFor } from '@/lib/items';
 import { now } from '@/lib/session';
 import type { ItemStatus, Kind, Lang, ScannedItem } from '@/lib/types';
@@ -300,9 +301,49 @@ export async function decideClaim(id: number, action: 'approve' | 'reject'): Pro
         if (c.lost_item_id) await exec('UPDATE items SET status = 1, matched_item_id = NULL WHERE id = ?', [c.lost_item_id], conn);
       }
     });
+    if (action === 'approve') await thankFinder(id, c.found_item_id, staffId);
     refresh();
     return {};
   });
+}
+
+/**
+ * The owner was confirmed but the finder still has the item: thank the finder and ask them to bring it to the office.
+ * The in-app notification comes from the data itself; this sends the email. The owner's identity is never included.
+ */
+async function thankFinder(claimId: number, foundItemId: number, staffId: number) {
+  const r = await one<{ title: string; item_code: string | null; received_at: string | null; handed_in_at: string | null; finder_id: number; claimant_id: number; name: string; email: string; org: string; org_id: number }>(
+    `SELECT i.title, i.item_code, i.received_at, i.handed_in_at, i.reporter_id AS finder_id, c.claimant_id, u.name, u.email, o.name AS org, o.id AS org_id
+     FROM items i JOIN claims c ON c.id = ? JOIN users u ON u.id = i.reporter_id JOIN organizations o ON o.id = i.organization_id
+     WHERE i.id = ?`, [claimId, foundItemId]);
+  if (!r || r.received_at || r.handed_in_at || r.finder_id === r.claimant_id) return; // already at (or brought to) the office, or nobody else to thank
+  const link = `${APP_URL}/items/${foundItemId}`;
+  const code = r.item_code ?? '—';
+  // A chat message from the office (in the app), and the same thanks by email.
+  await postOfficeMessage(r.org_id, r.finder_id, staffId, true, [
+    `ご協力ありがとうございます！あなたが見つけた「${r.title}」の持ち主が確認できました。事務所（受付）へお届けいただき、アイテムコード ${code} をお伝えください。`,
+    '',
+    `Thank you for your help! The owner of the "${r.title}" you found has been confirmed. Please bring it to the office and tell the staff the item code ${code}.`,
+  ].join('\n'), foundItemId);
+  await sendMail(r.email, `【Lost & Found】ありがとうございます：「${r.title}」を事務所へお届けください / Thank you — please bring the item to the office`, [
+    `${r.name} 様`,
+    '',
+    `あなたが見つけてくださった「${r.title}」の持ち主が確認できました。ご協力ありがとうございます。`,
+    `お手数ですが、${r.org}の事務所（受付）へお届けください。受付でアイテムコード ${code} をお伝えください。`,
+    'お届けの後、アプリのアイテムページで「事務所に届ける」を押してください。',
+    link,
+    '',
+    '―――',
+    '',
+    `Dear ${r.name},`,
+    '',
+    `The owner of the "${r.title}" you found has been confirmed. Thank you for your help!`,
+    `Please bring it to the office (front desk) of ${r.org} and tell the staff the item code ${code}.`,
+    'After handing it in, press "Hand over to the office" on the item page in the app:',
+    link,
+    '',
+    `Lost & Found · ${r.org}`,
+  ].join('\n'));
 }
 
 export async function handoverClaim(id: number, idType: string, pickupCode: string): Promise<Result> {
@@ -312,8 +353,13 @@ export async function handoverClaim(id: number, idType: string, pickupCode: stri
     if (!idType) throw new ActionError('Please select the ID shown.');
     const c = await findClaim(id, orgId);
     if (c.status !== 'approved') throw new ActionError('This claim is not ready for handover.');
-    // Claims approved before pickup codes existed have none; for those the ID check alone is enough.
-    if (c.pickup_code && pickupCode.replace(/\D/g, '') !== c.pickup_code)
+    // The owner must tell the code shown on their pickup pass. A claim approved before codes existed gets one now.
+    if (!c.pickup_code) {
+      await exec('UPDATE claims SET pickup_code = ? WHERE id = ?', [String(randomInt(0, 1_000_000)).padStart(6, '0'), id]);
+      refresh();
+      throw new ActionError('A pickup code was just sent to the owner. Ask them to open their pickup pass and tell you the code.');
+    }
+    if (pickupCode.replace(/\D/g, '') !== c.pickup_code)
       throw new ActionError('The pickup code does not match. Ask the owner to open their pickup pass.');
     await transaction(async conn => {
       await exec(`UPDATE claims SET status = 'returned', returned_at = NOW(), returned_by = ?, id_type = ? WHERE id = ?`, [staffId, idType, id], conn);
@@ -467,10 +513,108 @@ export async function sendThanks(claimId: number, input: {
   });
 }
 
+/** The finder reacts to a letter they received (tap the same reaction again to remove it). */
+export async function reactToThanks(id: number, reaction: string | null): Promise<Result> {
+  return handle(async () => {
+    const { uid } = await requireMember();
+    if (reaction !== null && !(THANKS_REACTIONS as readonly string[]).includes(reaction)) throw new ActionError('Unknown reaction.');
+    const r = await exec(
+      'UPDATE thanks SET reaction = ?, reacted_at = IF(? IS NULL, NULL, NOW()), read_at = COALESCE(read_at, NOW()) WHERE id = ? AND to_user = ?',
+      [reaction, reaction, id, uid]);
+    if (!r.affectedRows) throw new ActionError('Letter not found.');
+    refresh();
+    return {};
+  });
+}
+
 /** The finder opened a letter. */
 export async function markThanksRead(id: number): Promise<void> {
   const { uid } = await requireMember();
   await exec('UPDATE thanks SET read_at = COALESCE(read_at, NOW()) WHERE id = ? AND to_user = ?', [id, uid]);
+}
+
+// ---------- office chat ----------
+
+/** Posts to a member's conversation with the office. senderId null = automatic message from the system. */
+async function postOfficeMessage(orgId: number, memberId: number, senderId: number | null, fromStaff: boolean, body: string, itemId: number | null = null) {
+  await exec('INSERT INTO office_messages (organization_id, member_id, sender_id, from_staff, body, item_id) VALUES (?, ?, ?, ?, ?, ?)',
+    [orgId, memberId, senderId, fromStaff ? 1 : 0, body, itemId]);
+}
+
+/** Who may write in a conversation: the member themselves, or staff/admins of that organization (to an approved member). */
+async function chatParty(memberId: number | null) {
+  const { user } = await requireLogin();
+  if (!user.organizationId || user.membershipStatus !== 'approved') throw new ActionError('Join a community first.');
+  const staff = user.role === 'staff' || user.role === 'admin';
+  if (!staff) return { orgId: user.organizationId, memberId: user.id, uid: user.id, staff };
+  if (!memberId) throw new ActionError('Please choose a member.');
+  const m = await one(`SELECT id FROM organization_members WHERE user_id = ? AND organization_id = ? AND status = 'approved'`, [memberId, user.organizationId]);
+  if (!m) throw new ActionError('Member not found.');
+  return { orgId: user.organizationId, memberId, uid: user.id, staff };
+}
+
+export async function sendOfficeMessage(memberId: number | null, rawBody: string): Promise<Result> {
+  return handle(async () => {
+    const p = await chatParty(memberId);
+    const body = rawBody.trim();
+    if (!body) throw new ActionError('Please write a message.');
+    maxLen(body, 2000, 'The message is too long.');
+    // A member's reply continues the office's last message: if that was about an item (e.g. a question on a claim),
+    // the reply is tagged with the same item so it also shows on the claim card at the front desk.
+    let itemId: number | null = null;
+    if (!p.staff) {
+      const last = await one<{ item_id: number | null; from_staff: number }>(
+        'SELECT item_id, from_staff FROM office_messages WHERE organization_id = ? AND member_id = ? ORDER BY id DESC LIMIT 1', [p.orgId, p.memberId]);
+      if (last && Number(last.from_staff) === 1) itemId = last.item_id;
+    }
+    await postOfficeMessage(p.orgId, p.memberId, p.uid, p.staff, body, itemId);
+    refresh();
+    return {};
+  });
+}
+
+/** The viewer opened the conversation: the other side's messages become read. */
+export async function markOfficeRead(memberId: number | null): Promise<void> {
+  const p = await chatParty(memberId);
+  const r = await exec('UPDATE office_messages SET read_at = NOW() WHERE organization_id = ? AND member_id = ? AND from_staff = ? AND read_at IS NULL',
+    [p.orgId, p.memberId, p.staff ? 0 : 1]);
+  if (r.affectedRows) refresh();
+}
+
+// ---------- questions about a claim ----------
+
+/** Who may talk about a claim: the claimant, or staff/admins of the item's organization. */
+async function claimParty(claimId: number) {
+  const { user } = await requireLogin();
+  const c = await one<{ status: string; claimant_id: number; organization_id: number; found_item_id: number }>(
+    'SELECT c.status, c.claimant_id, i.organization_id, c.found_item_id FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?', [claimId]);
+  if (!c) throw new ActionError('Claim not found.');
+  const staff = ['staff', 'admin'].includes(user.role) && user.organizationId === c.organization_id;
+  if (!staff && c.claimant_id !== user.id) throw new ActionError('Claim not found.');
+  return { uid: user.id, staff, status: c.status, orgId: c.organization_id, memberId: c.claimant_id, itemId: c.found_item_id };
+}
+
+export async function sendClaimMessage(claimId: number, rawBody: string): Promise<Result> {
+  return handle(async () => {
+    const { uid, staff, status, orgId, memberId, itemId } = await claimParty(claimId);
+    const body = rawBody.trim();
+    if (!body) throw new ActionError('Please write a message.');
+    maxLen(body, 1000, 'The message is too long.');
+    if (status !== 'pending' && status !== 'approved') throw new ActionError('This claim is closed.');
+    // Goes into the claimant's Messages conversation, tagged with the item.
+    await postOfficeMessage(orgId, memberId, uid, staff, body, itemId);
+    refresh();
+    return {};
+  });
+}
+
+/** The viewer opened the conversation: the other side's messages are read. */
+export async function markClaimMessagesRead(claimId: number): Promise<void> {
+  const { staff, orgId, memberId, itemId } = await claimParty(claimId);
+  // No refresh here: the "New" badge on the claim card stays until the next visit.
+  await exec(
+    'UPDATE office_messages SET read_at = NOW() WHERE organization_id = ? AND member_id = ? AND item_id = ? AND from_staff = ? AND read_at IS NULL',
+    [orgId, memberId, itemId, staff ? 0 : 1]);
 }
 
 // ---------- matches ----------

@@ -9,3 +9,6 @@ export const GIFT_AMOUNTS = [500, 1000, 3000, 5000];
 
 export const CARD_DESIGNS = ['classic', 'sakura', 'sunny', 'mint'] as const;
 export type CardDesign = (typeof CARD_DESIGNS)[number];
+
+/** Reactions a finder can give to a thank-you letter. */
+export const THANKS_REACTIONS = ['❤️', '😊', '🙏', '🎉', '👍'] as const;

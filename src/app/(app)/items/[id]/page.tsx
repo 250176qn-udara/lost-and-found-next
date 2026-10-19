@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requirePage } from '@/lib/auth';
 import { POLICE_DAYS } from '@/lib/constants';
-import { getClaimEvents, getItemDetail } from '@/lib/data';
+import { getClaimEvents, getItemDetail, getThanks } from '@/lib/data';
+import { finderJourney, ownerJourney, staffJourney, type Journey } from '@/lib/journey';
+import { JourneyBar, JourneyPanel } from '@/components/Journey';
 import { getT } from '@/lib/i18n-server';
 import { itemEvents } from '@/lib/timeline';
 import { ClaimButton } from '@/components/ClaimButton';
@@ -13,7 +15,7 @@ import { RejectMatchButton } from '@/components/MatchButtons';
 import { QrCode } from '@/components/QrCode';
 import { GoogleMap } from '@/components/GoogleMap';
 import { mapsLink } from '@/lib/geo';
-import { Callout, Head, KindBadge, Kv, placeDate, Stepper, Timeline } from '@/components/ui';
+import { Callout, Head, KindBadge, Kv, placeDate, Timeline } from '@/components/ui';
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { user } = await requirePage({ membership: true });
@@ -32,13 +34,34 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const isFinder = isMine && it.kind === 'found';
   const openClaim = claims.find(c => c.status === 'approved') ?? claims.find(c => c.status === 'pending');
   const withFinder = it.kind === 'found' && !it.receivedAt && it.status < 5;
-  const canClaim = user.role === 'member' && !isMine && it.kind === 'found' && it.status >= 2 && it.status < 5;
+  // The viewer's own latest claim on this item (members only see their own).
+  const myClaim = [...claims].reverse().find(c => c.claimantId === user.id) ?? null;
+  const myOpenClaim = myClaim && (myClaim.status === 'pending' || myClaim.status === 'approved') ? myClaim : null;
+  const canClaim = user.role === 'member' && !isMine && !myOpenClaim && it.kind === 'found' && it.status >= 2 && it.status < 5;
   // Like real lost-and-found desks: a found item's description is private (only staff and the finder), so a claimant
   // has to describe the item themselves and cannot copy the answers.
   const showDetails = it.kind === 'lost' || isStaff || isMine;
   const atOffice = it.kind === 'found' && !!it.receivedAt && it.status < 5;
   const policeDue = atOffice ? new Date(Date.parse(it.receivedAt!.replace(' ', 'T')) + POLICE_DAYS * 86_400_000).toISOString().slice(0, 10) : null;
   const lostId = it.kind === 'lost' ? it.id : it.matchedItemId;
+
+  // The journey from the viewer's point of view (owner, finder or staff).
+  const latest = claims.find(c => c.status === 'returned') ?? openClaim ?? null;
+  let journey: Journey | null = null;
+  if (isStaff && it.kind === 'found') {
+    const th = latest?.status === 'returned' ? await getThanks(latest.claimantId) : null;
+    journey = staffJourney({ itemId: it.id, claim: latest?.status ?? null, handedIn: !!it.handedInAt, atOffice: !!it.receivedAt,
+      returned: it.status === 5, closed: it.status === 6, thanked: !!th?.sent.some(x => x.claimId === latest!.id) });
+  } else if (isFinder) {
+    const th = await getThanks(user.id);
+    journey = finderJourney({ claim: latest?.status ?? null, handedIn: !!it.handedInAt, atOffice: !!it.receivedAt, returned: it.status === 5,
+      thanked: th.received.some(x => x.itemId === it.id) });
+  } else if (isMine && it.kind === 'lost') {
+    const own = [...claims].reverse().find(c => c.claimantId === user.id) ?? null;
+    const [found, th] = await Promise.all([it.matchedItemId ? getItemDetail(it.matchedItemId, user.organizationId!) : null, getThanks(user.id)]);
+    journey = ownerJourney({ matched: !!it.matchedItemId, claim: own?.status ?? null, claimId: own?.id, atOffice: !!found?.receivedAt,
+      thanked: !!own && th.sent.some(x => x.claimId === own.id) });
+  }
 
   return (
     <>
@@ -105,8 +128,22 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
           )}
+          {myOpenClaim && (
+            <div className="box note teal">
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <span className="icon-chip green"><Icon name="check" /></span>
+                <div style={{ flex: 1 }}>
+                  <b>{t('You claimed this')}</b>
+                  <div className="meta">{t(myOpenClaim.status === 'approved' ? 'Approved — bring your photo ID and pickup code to the office.' : 'Staff are checking your answers. You will get a notification.')}</div>
+                  <div className="meta">{t('Claim sent')}: {myOpenClaim.createdAt.slice(0, 16)}</div>
+                </div>
+              </div>
+              <div className="btnrow"><Link className="btn sec" href="/my-items?tab=claims">{t(myOpenClaim.status === 'approved' ? 'Open pickup pass' : 'See my claim')}</Link></div>
+            </div>
+          )}
           {canClaim && (
             <div className="box">
+              {myClaim?.status === 'rejected' && <p className="meta" style={{ marginTop: 0 }}>{t('Your earlier claim was not approved. You can claim again with more details.')}</p>}
               <h2 style={{ marginTop: 0 }}>{t('Claim this item')}</h2>
               <p className="meta">{t('Answer so staff can check that it is yours.')}</p>
               <ClaimButton itemId={it.id} label="This is mine" />
@@ -116,7 +153,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <div>
           <div className="box" style={{ marginBottom: 16 }}>
             <h2 style={{ marginTop: 0 }}>{t('Progress')}</h2>
-            <Stepper n={Math.min(it.status, 5)} t={t} />
+            {journey ? <JourneyPanel j={journey} t={t} /> : <JourneyBar done={[true, it.status >= 3, it.status >= 3, !!it.receivedAt || it.status === 5, it.status >= 4, it.status === 5, false]} t={t} />}
             <div style={{ marginTop: 16 }}><Timeline events={itemEvents(it, shownClaims, t, isStaff)} /></div>
           </div>
           {it.matchedItemId && (isStaff || isMine) && (

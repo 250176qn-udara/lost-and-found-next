@@ -3,8 +3,9 @@ import type { Role } from './types';
 export const STEPS = ['Reported', 'Registered', 'Matched', 'Verified', 'Returned'];
 export const COLORS = ['#2563eb', '#0d9488', '#6366f1', '#d97706', '#64748b'];
 
-export const CATEGORIES = ['Wallet', 'Bag', 'Electronics', 'ID card', 'Keys', 'Other'];
-export const BROWSE_CATEGORIES = ['All', 'Wallet', 'Bag', 'Electronics', 'ID card', 'Other'];
+/** Item categories, chosen for an IT college (laptops, chargers, student IDs, commuter passes...). */
+export const CATEGORIES = ['Smartphone', 'Laptop / tablet', 'Earphones', 'Charger / cable', 'USB / storage', 'Electronics', 'ID card', 'IC card / pass', 'Wallet', 'Keys', 'Bag', 'Umbrella', 'Clothing', 'Textbook / stationery', 'Water bottle', 'Other'];
+export const BROWSE_CATEGORIES = ['All', ...CATEGORIES];
 export const SHELVES = ['A-01', 'A-02', 'B-01', 'B-02'];
 export const ID_TYPES = ['Student ID', 'Driver’s license', 'My Number card', 'Passport'];
 
@@ -15,23 +16,26 @@ export const ROLE_NAMES: Record<Role, string> = {
   super: 'Super admin',
 };
 
+/** The interactive guide (public/how-it-works.html). */
+export const GUIDE_URL = '/how-it-works.html';
+
 export type NavGroup = { group: string; links: [href: string, label: string, icon: string][] };
 
 /** Sidebar menus. Each entry is a hub page; its sections are tabs or expandable cards inside the page. */
 export const NAV: Record<Role, NavGroup[]> = {
   member: [
-    { group: 'Menu', links: [['/home', 'Home', 'home'], ['/report', 'Report an item', 'plus'], ['/my-items', 'My items', 'box'], ['/browse', 'Found items', 'search']] },
-    { group: 'Account', links: [['/profile', 'Account', 'user']] },
+    { group: 'Menu', links: [['/home', 'Home', 'home'], ['/report', 'Report an item', 'plus'], ['/my-items', 'My items', 'box'], ['/browse', 'Found items', 'search'], ['/messages', 'Messages', 'chat']] },
+    { group: 'Account', links: [['/profile', 'Account', 'user'], [GUIDE_URL, 'How it works', 'other']] },
   ],
   staff: [
-    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/register', 'Intake', 'inbox'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf']] },
-    { group: 'Account', links: [['/profile', 'Account', 'user']] },
+    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/messages', 'Messages', 'chat'], ['/register', 'Intake', 'inbox'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf']] },
+    { group: 'Account', links: [['/profile', 'Account', 'user'], [GUIDE_URL, 'How it works', 'other']] },
   ],
   admin: [
     { group: 'Overview', links: [['/dash', 'Overview', 'chart']] },
-    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/register', 'Intake', 'inbox'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf']] },
+    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/messages', 'Messages', 'chat'], ['/register', 'Intake', 'inbox'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf']] },
     { group: 'Management', links: [['/users', 'People', 'users'], ['/reports', 'Insights', 'pie'], ['/settings', 'Settings', 'gear']] },
-    { group: 'Account', links: [['/profile', 'Account', 'user']] },
+    { group: 'Account', links: [['/profile', 'Account', 'user'], [GUIDE_URL, 'How it works', 'other']] },
   ],
   super: [
     { group: 'Platform', links: [['/orgs', 'Platform', 'globe']] },

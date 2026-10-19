@@ -2,10 +2,12 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requirePage } from '@/lib/auth';
 import { statusName } from '@/lib/constants';
-import { getClaimsOnMyFinds, getMatchPairs, getMyClaims, getMyItems, getThanks, getUnthankedReturns } from '@/lib/data';
+import { getClaimMessages, getClaimsOnMyFinds, getMatchPairs, getMyClaims, getMyItems, getThanks, getUnthankedReturns } from '@/lib/data';
+import { ClaimChat } from '@/components/ClaimChat';
 import { GIFT_BRANDS } from '@/lib/gifts';
 import { ThankYouCard } from '@/components/ThankYouCard';
 import { GiftReveal } from './GiftReveal';
+import { ReactionBar } from './ReactionBar';
 import { getT } from '@/lib/i18n-server';
 import { scoreClass, scoreMatch } from '@/lib/match';
 import type { Claim, ClaimStatus, Item } from '@/lib/types';
@@ -18,7 +20,9 @@ import { Empty } from '@/components/Illustration';
 import { RejectMatchButton } from '@/components/MatchButtons';
 import { PickupPass } from '@/components/PickupPass';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
-import { Head, Kv, placeDate, Stepper } from '@/components/ui';
+import { Head, Kv, placeDate } from '@/components/ui';
+import { JourneyPanel } from '@/components/Journey';
+import { finderJourney, ownerJourney, type NextStep } from '@/lib/journey';
 
 const CLAIM_LABEL: Record<ClaimStatus, string> = { pending: 'Checking your answers', approved: 'Ready to pick up', returned: 'Returned', rejected: 'Not approved' };
 const CLAIM_BADGE: Record<ClaimStatus, string> = { pending: '', approved: 'ok', returned: 'ok', rejected: 'no' };
@@ -31,6 +35,11 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
     searchParams, getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getMatchPairs(orgId, user.id), getClaimsOnMyFinds(user.id, orgId),
     getThanks(user.id), getUnthankedReturns(user.id),
   ]);
+  const msgs = await getClaimMessages(claims.map(c => c.id));
+  const question = (id: number) => (msgs[id] ?? []).some(m => m.fromStaff && !m.readAt);
+  // Journey helpers: the owner's latest claim on a found item, and whether thanks were sent / received.
+  const claimOn = (foundId?: number | null) => (foundId ? claims.find(c => c.foundItemId === foundId) ?? null : null);
+  const thankedClaim = (claimId: number) => !unthanked.some(u => u.claim_id === claimId);
   const lost = mine.filter(i => i.kind === 'lost');
   const found = mine.filter(i => i.kind === 'found');
   const activeClaims = claims.filter(c => c.status !== 'rejected');
@@ -49,9 +58,12 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
 
       {cur === 'lost' && (lost.length ? lost.map((i, n) => {
         const pair = pairs.find(p => p.lostId === i.id);
+        const oc = claimOn(pair?.foundId ?? i.matchedItemId);
+        const j = ownerJourney({ matched: !!pair || !!i.matchedItemId, claim: oc?.status ?? null, claimId: oc?.id, atOffice: !!oc?.shelf,
+          thanked: !!oc && oc.status === 'returned' && thankedClaim(oc.id) });
         return (
-          <Expandable key={i.id} open={n === 0 && !!pair} tone={i.status === 5 ? 'done' : ''} head={<ItemHead i={i} t={t} extra={pair && i.status === 3 ? <span className="badge">{t('Possible match found')}</span> : null} />}>
-            <Stepper n={i.status} t={t} />
+          <Expandable key={i.id} open={(n === 0 && !!pair) || j.next.who === 'you'} tone={i.status === 5 ? 'done' : ''} head={<ItemHead i={i} t={t} next={j.next} extra={pair && i.status === 3 ? <span className="badge">{t('Possible match found')}</span> : null} />}>
+            <JourneyPanel j={j} t={t} />
             {i.description && <><div className="sec-title" style={{ marginTop: 16 }}>{t('Your description')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{i.description}</p></>}
             {pair && i.status < 5 && (() => {
               const { score, why } = scoreMatch({ place: pair.lostPlace, date: pair.lostDate, lat: pair.lostLat, lng: pair.lostLng }, { place: pair.foundPlace, date: pair.foundDate, lat: pair.foundLat, lng: pair.foundLng });
@@ -75,7 +87,6 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
                 </>
               );
             })()}
-            {!pair && i.status < 5 && <p className="meta" style={{ marginTop: 14 }}>{t('We will tell you when a found item looks like this.')} <Link href="/browse">{t('Browse found items')}</Link></p>}
             <div className="btnrow"><Link className="btn sec" href={`/items/${i.id}`}>{t('Full details')}</Link></div>
           </Expandable>
         );
@@ -84,10 +95,12 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
       {cur === 'found' && (found.length ? found.map(i => {
         const claim = onFinds.get(i.id);
         const withFinder = !i.receivedAt && i.status < 5;
+        const j = finderJourney({ claim: claim ?? null, handedIn: !!i.handedInAt, atOffice: !!i.receivedAt, returned: i.status === 5,
+          thanked: thanks.received.some(x => x.itemId === i.id) });
         return (
-          <Expandable key={i.id} open={withFinder && !!claim && !i.handedInAt} tone={i.status >= 5 ? 'done' : ''}
-            head={<ItemHead i={i} t={t} extra={claim && claim !== 'returned' ? <span className="badge">{t('Someone claimed it')}</span> : null} />}>
-            <Stepper n={Math.min(i.status, 5)} t={t} />
+          <Expandable key={i.id} open={j.next.who === 'you'} tone={i.status >= 5 ? 'done' : ''}
+            head={<ItemHead i={i} t={t} next={j.next} extra={claim && claim !== 'returned' ? <span className="badge">{t('Someone claimed it')}</span> : null} />}>
+            <JourneyPanel j={j} t={t}>{j.next.who === 'you' && withFinder ? <HandToOfficeButton itemId={i.id} itemCode={i.itemCode ?? null} /> : undefined}</JourneyPanel>
             <div className="cols even" style={{ marginTop: 16 }}>
               <div>
                 <div className="sec-title">{t('Where it is')}</div>
@@ -102,15 +115,17 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
                 <p style={{ margin: 0 }}>{t(!claim ? 'Nobody has claimed it yet.' : claim === 'pending' ? 'Someone has claimed it. Staff are checking it.' : claim === 'approved' ? 'The owner was confirmed.' : 'The owner got it back.')}</p>
               </div>
             </div>
-            {withFinder && !i.handedInAt && <div className="btnrow"><HandToOfficeButton itemId={i.id} itemCode={i.itemCode ?? null} /></div>}
             <div className="btnrow"><Link className="btn sec" href={`/items/${i.id}`}>{t('Full details')}</Link></div>
           </Expandable>
         );
       }) : <Empty art="report" title={t('You have not posted any found items.')} text={t('Found something? Post it so the owner can find it.')}><Link className="btn" href="/report?kind=found">{t('I found something')}</Link></Empty>)}
 
-      {cur === 'claims' && (activeClaims.length || claims.length ? claims.map((c, n) => (
-        <Expandable key={c.id} open={n === 0 && c.status === 'approved'} tone={c.status === 'returned' ? 'done' : c.status === 'rejected' ? 'muted' : ''}
-          head={<ClaimHead c={c} t={t} />}>
+      {cur === 'claims' && (activeClaims.length || claims.length ? claims.map((c, n) => {
+        const j = ownerJourney({ matched: true, claim: c.status, claimId: c.id, atOffice: !!c.shelf, thanked: c.status === 'returned' && thankedClaim(c.id) });
+        return (
+        <Expandable key={c.id} open={(n === 0 && c.status === 'approved') || question(c.id) || j.next.who === 'you'} tone={c.status === 'returned' ? 'done' : c.status === 'rejected' ? 'muted' : ''}
+          head={<><ClaimHead c={c} t={t} next={j.next} />{question(c.id) && <span className="badge no">{t('Question from the office')}</span>}</>}>
+          <JourneyPanel t={t} j={j} />
           {c.status === 'approved' && <PickupPass t={t} title={c.itemTitle} itemCode={c.itemCode} pickupCode={c.pickupCode} shelf={c.shelf} approvedAt={c.decidedAt} atOffice={!!c.shelf} />}
           {c.status === 'pending' && (
             <>
@@ -120,14 +135,17 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
           )}
           {c.status === 'returned' && (
             <div className="btnrow" style={{ marginTop: 0 }}>
-              {unthanked.some(u => u.claim_id === c.id) && <Link className="btn" href={`/thanks/${c.id}`}>{t('Write a thank-you letter')}</Link>}
               {thanks.sent.some(x => x.claimId === c.id) && <span className="badge ok">{t('Thanks sent')}</span>}
               <Link className="btn sec" href={`/history/${c.id}`}><Icon name="check" size={16} />{t('Certificate of return')}</Link>
             </div>
           )}
+          {(c.status === 'pending' || c.status === 'approved' || (msgs[c.id] ?? []).length > 0) && (
+            <ClaimChat claimId={c.id} messages={msgs[c.id] ?? []} viewer="claimant" open={c.status === 'pending' || c.status === 'approved'} messagesHref="/messages" />
+          )}
           {c.status === 'rejected' && <p style={{ margin: 0 }}>{t('Staff could not confirm that this item is yours. If you think this is a mistake, ask at the office.')}</p>}
         </Expandable>
-      )) : <Empty art="verify" title={t('You have no claims yet.')} text={t('When you find your item in Found items, press "This is mine".')}><Link className="btn" href="/browse">{t('Browse found items')}</Link></Empty>)}
+        );
+      }) : <Empty art="verify" title={t('You have no claims yet.')} text={t('When you find your item in Found items, press "This is mine".')}><Link className="btn" href="/browse">{t('Browse found items')}</Link></Empty>)}
 
       {cur === 'thanks' && (
         <>
@@ -151,6 +169,7 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
                   {!x.readAt && <span className="badge" style={{ position: 'absolute', top: 12, right: 12 }}>{t('New')}</span>}
                   {x.giftAmount && <div className="letter-gift">🎁 {t(GIFT_BRANDS.find(b => b.key === x.giftBrand)?.name ?? 'E-gift')} ¥{x.giftAmount.toLocaleString()}</div>}
                   <GiftReveal thanksId={x.id} unread={!x.readAt} code={x.giftCode} how={GIFT_BRANDS.find(b => b.key === x.giftBrand)?.how ?? ''} />
+                  <ReactionBar thanksId={x.id} current={x.reaction} />
                 </ThankYouCard>
               ))}
             </div>
@@ -163,6 +182,7 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
                   <ThankYouCard key={x.id} design={x.card} message={x.message} from={t('you')}>
                     {x.giftAmount && <div className="letter-gift">🎁 {t(GIFT_BRANDS.find(b => b.key === x.giftBrand)?.name ?? 'E-gift')} ¥{x.giftAmount.toLocaleString()}</div>}
                     <div className="meta" style={{ marginTop: 6 }}>{x.itemTitle} · {x.createdAt.slice(0, 10)}</div>
+                    {x.reaction && <div className="reacted"><span>{x.reaction}</span>{t('The finder reacted')}</div>}
                   </ThankYouCard>
                 ))}
               </div>
@@ -174,24 +194,29 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
   );
 }
 
-function ItemHead({ i, t, extra }: { i: Item; t: T; extra?: ReactNode }) {
+function ItemHead({ i, t, extra, next }: { i: Item; t: T; extra?: ReactNode; next?: NextStep }) {
   return (
     <>
       <CategoryArt category={i.category} />
-      <div className="grow"><b>{i.title}</b><div className="meta">{placeDate(i.place, i.date, t)}</div></div>
+      <div className="grow"><b>{i.title}</b><div className="meta">{placeDate(i.place, i.date, t)}</div>{next && <NextLine next={next} t={t} />}</div>
       {extra}
       <span className={'badge ' + (i.status === 5 ? 'ok' : '')}>{t(statusName(i.status))}</span>
     </>
   );
 }
 
-function ClaimHead({ c, t }: { c: Claim; t: T }) {
+/** One line under a card title: whose turn it is and what happens next. */
+function NextLine({ next, t }: { next: NextStep; t: T }) {
+  return <div className={'nextline ' + next.who}>{next.who === 'you' ? '👉 ' : ''}{t(next.text)}</div>;
+}
+
+function ClaimHead({ c, t, next }: { c: Claim; t: T; next?: NextStep }) {
   return (
     <>
       <span className={'icon-chip ' + (c.status === 'approved' ? 'green' : c.status === 'rejected' ? 'red' : c.status === 'returned' ? 'green' : 'amber')}>
         <Icon name={c.status === 'approved' ? 'ticket' : c.status === 'returned' ? 'check' : c.status === 'rejected' ? 'alert' : 'clock'} />
       </span>
-      <div className="grow"><b>{c.itemTitle}</b><div className="meta">{placeDate(c.itemPlace, c.itemDate, t)}</div></div>
+      <div className="grow"><b>{c.itemTitle}</b><div className="meta">{placeDate(c.itemPlace, c.itemDate, t)}</div>{next && <NextLine next={next} t={t} />}</div>
       <span className={'badge ' + CLAIM_BADGE[c.status]}>{t(CLAIM_LABEL[c.status])}</span>
     </>
   );

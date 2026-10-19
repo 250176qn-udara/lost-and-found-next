@@ -6,7 +6,7 @@ import { getT } from '@/lib/i18n-server';
 import { scoreClass, scoreMatch } from '@/lib/match';
 import { GoogleMap } from '@/components/GoogleMap';
 import { CsvButton, PrintButton } from '@/components/ClientBits';
-import { CategoryArt } from '@/components/Icon';
+import { CategoryArt, Icon } from '@/components/Icon';
 import { Empty } from '@/components/Illustration';
 import { LinkManuallyButton, RejectMatchButton } from '@/components/MatchButtons';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
@@ -15,10 +15,10 @@ import { Head, href, KindBadge, LinkChips, placeDate } from '@/components/ui';
 const FILTERS = ['All', ...STEPS, 'Closed'];
 
 /** Every item in the organization: list, system matches, and map. Click an item for its full history. */
-export default async function ItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string; q?: string }> }) {
+export default async function ItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string; q?: string; view?: string }> }) {
   const { user } = await requirePage({ roles: ['staff', 'admin'] });
   const orgId = user.organizationId!;
-  const [{ tab, f = 'All', q = '' }, t, items, pairs] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getMatchPairs(orgId)]);
+  const [{ tab, f = 'All', q = '', view = 'list' }, t, items, pairs] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getMatchPairs(orgId)]);
   const tabs: TabDef[] = [
     { key: 'list', label: 'All items', icon: 'list', count: items.length },
     { key: 'matches', label: 'Matches', icon: 'search', count: pairs.length },
@@ -30,7 +30,7 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
     <>
       <Head title={t('Item list')} sub={t('Every item in your organization. Click one to see its full history.')} />
       <Tabs tabs={tabs} current={cur} base="/items" t={t} />
-      {cur === 'list' && <ItemList items={items} f={f} q={q} t={t} />}
+      {cur === 'list' && <ItemList items={items} f={f} q={q} view={view === 'photos' ? 'photos' : 'list'} t={t} />}
       {cur === 'matches' && <Matches orgId={orgId} pairs={pairs} t={t} />}
       {cur === 'map' && <ItemMap items={items} t={t} />}
     </>
@@ -40,7 +40,8 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
 type Items = Awaited<ReturnType<typeof getOrgItems>>;
 type T = Awaited<ReturnType<typeof getT>>;
 
-function ItemList({ items, f, q, t }: { items: Items; f: string; q: string; t: T }) {
+/** All items as a table, or as photo cards (?view=photos). Filters and search apply to both. */
+function ItemList({ items, f, q, view, t }: { items: Items; f: string; q: string; view: 'list' | 'photos'; t: T }) {
   const needle = q.trim().toLowerCase();
   const list = items.filter(i =>
     (f === 'All' || statusName(i.status) === f) &&
@@ -51,21 +52,46 @@ function ItemList({ items, f, q, t }: { items: Items; f: string; q: string; t: T
   ];
   return (
     <>
-      <LinkChips options={FILTERS} current={f} t={t} make={o => href('/items', { f: o === 'All' ? '' : o, q })} />
+      <LinkChips options={FILTERS} current={f} t={t} make={o => href('/items', { f: o === 'All' ? '' : o, q, view: view === 'photos' ? 'photos' : '' })} />
       <form className="toolbar">
         {f !== 'All' && <input type="hidden" name="f" value={f} />}
+        {view === 'photos' && <input type="hidden" name="view" value="photos" />}
         <input name="q" defaultValue={q} placeholder={t('Search items')} />
         <button className="btn sec">{t('Search')}</button>
         <span className="grow" />
+        <div className="seg" style={{ margin: 0 }}>
+          <Link href={href('/items', { f: f === 'All' ? '' : f, q })} className={'segl' + (view === 'list' ? ' on' : '')}><Icon name="list" size={16} />{t('List')}</Link>
+          <Link href={href('/items', { f: f === 'All' ? '' : f, q, view: 'photos' })} className={'segl' + (view === 'photos' ? ' on' : '')}><Icon name="grid" size={16} />{t('Photos')}</Link>
+        </div>
         <CsvButton filename="items.csv" rows={csv} />
         <PrintButton />
       </form>
+      {view === 'photos' ? (list.length ? (
+        <div className="grid">
+          {list.map(i => (
+            <Link key={i.id} href={`/items/${i.id}`} className="box" style={{ color: 'inherit', textDecoration: 'none', display: 'flex', flexDirection: 'column' }}>
+              {i.hasPhoto
+                ? <div className="thumb"><img src={`/api/items/${i.id}/photo`} alt="" loading="lazy" /><span className="cat">{t(i.category)}</span></div>
+                : <CategoryArt category={i.category} big />}
+              <b style={{ color: 'var(--ink)' }}>{i.title}</b>
+              <div className="meta">{placeDate(i.place, i.date, t)}</div>
+              <div className="pillrow" style={{ marginBottom: 0 }}>
+                <KindBadge kind={i.kind} t={t} />
+                <span className={'badge ' + (i.status === 5 ? 'ok' : i.status === 6 ? 'no' : '')}>{t(statusName(i.status))}</span>
+              </div>
+              <div className="meta" style={{ marginTop: 'auto', paddingTop: 8 }}>{i.itemCode ?? '—'}{i.shelf ? ` · ${t('Shelf {shelf}', { shelf: i.shelf })}` : ''} · {i.reporterName}</div>
+            </Link>
+          ))}
+        </div>
+      ) : <Empty art="search" title={t('No items match.')} />) : (
       <table>
         <thead><tr><th></th><th>{t('Item')}</th><th>{t('Type')}</th><th>{t('Place')}</th><th>{t('Status')}</th><th>{t('Item code')}</th><th>{t('Shelf')}</th></tr></thead>
         <tbody>
           {list.length ? list.map(i => (
             <tr key={i.id}>
-              <td style={{ width: 56 }}><CategoryArt category={i.category} size={36} /></td>
+              <td style={{ width: 56 }}>{i.hasPhoto
+                ? <img src={`/api/items/${i.id}/photo`} alt="" loading="lazy" className="rowthumb" />
+                : <CategoryArt category={i.category} size={36} />}</td>
               <td><Link href={`/items/${i.id}`}>{i.title}</Link><div className="meta">{t(i.category)} · {i.reporterName}</div></td>
               <td><KindBadge kind={i.kind} t={t} /></td>
               <td>{placeDate(i.place, i.date, t)}</td>
@@ -76,6 +102,7 @@ function ItemList({ items, f, q, t }: { items: Items; f: string; q: string; t: T
           )) : <tr><td colSpan={7} className="meta">{t('No items match.')}</td></tr>}
         </tbody>
       </table>
+      )}
     </>
   );
 }
