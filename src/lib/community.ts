@@ -13,14 +13,13 @@ const s = (v: unknown) => (v == null ? null : String(v));
 export type HelpWanted = { id: number; title: string; category: string; place: string; building: string; date: string | null;
   createdAt: string; hasPhoto: boolean; iSaw: boolean };
 
-/** Open lost reports whose owner asked for help (last 14 days). Only the name, category, place and date are shared. */
+/** Open lost reports in the community (not the viewer's own). Only the name, category, place and date are shared. */
 export async function getHelpWanted(orgId: number, uid: number): Promise<HelpWanted[]> {
   const rows = await all<Record<string, unknown>>(
     `SELECT i.id, i.title, i.category, i.place, i.item_date, i.created_at, (i.photo IS NOT NULL) AS has_photo,
             EXISTS(SELECT 1 FROM sightings g WHERE g.item_id = i.id AND g.user_id = ?) AS i_saw
      FROM items i
-     WHERE i.organization_id = ? AND i.kind = 'lost' AND i.ask_help = 1 AND i.status BETWEEN 1 AND 3 AND i.reporter_id <> ?
-       AND i.created_at > NOW() - INTERVAL 14 DAY
+     WHERE i.organization_id = ? AND i.kind = 'lost' AND i.status BETWEEN 1 AND 3 AND i.reporter_id <> ?
      ORDER BY i.id DESC`, [uid, orgId, uid]);
   return rows.map(r => ({ id: Number(r.id), title: String(r.title), category: String(r.category), place: String(r.place),
     building: buildingOf(String(r.place)), date: s(r.item_date), createdAt: String(r.created_at),

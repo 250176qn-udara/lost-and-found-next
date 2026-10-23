@@ -152,7 +152,7 @@ const J: Record<string, string> = {
   'Clap': '拍手',
   'Seen these?': '見かけた？',
   'Have you seen these?': '見かけませんでしたか？',
-  'Things people lost in the last 14 days. If you saw one, tell the owner, or post it if you found it. Only the name, place and date are shown.': '最近14日間に紛失された物です。見かけたら持ち主に伝えるか、拾った場合は投稿してください。表示されるのは名前・場所・日付だけです。',
+  'Things people in your community lost and are still looking for. If you saw one, tell the owner, or post it if you found it. Only the name, place and date are shown.': 'コミュニティーで紛失され、まだ見つかっていない物です。見かけたら持ち主に伝えるか、拾った場合は投稿してください。表示されるのは名前・場所・日付だけです。',
   'Reported {time}': '{time} に届け出',
   'I found it': '拾った',
   'Nobody is asking for help right now.': '今は助けを求めている人はいません。',

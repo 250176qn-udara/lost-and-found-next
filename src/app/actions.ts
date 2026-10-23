@@ -793,9 +793,9 @@ export async function reportSighting(itemId: number, rawNote: string): Promise<R
     const note = String(rawNote ?? '').trim();
     if (!note) throw new ActionError('Please say where and when you saw it.');
     maxLen(note, 300, 'The note is too long.');
-    const it = await one<{ organization_id: number; reporter_id: number; kind: Kind; status: number; ask_help: number; title: string }>(
-      'SELECT organization_id, reporter_id, kind, status, ask_help, title FROM items WHERE id = ?', [itemId]);
-    if (!it || it.organization_id !== orgId || it.kind !== 'lost' || !Number(it.ask_help) || it.reporter_id === uid) throw new ActionError('Item not found.');
+    const it = await one<{ organization_id: number; reporter_id: number; kind: Kind; status: number; title: string }>(
+      'SELECT organization_id, reporter_id, kind, status, title FROM items WHERE id = ?', [itemId]);
+    if (!it || it.organization_id !== orgId || it.kind !== 'lost' || it.reporter_id === uid) throw new ActionError('Item not found.');
     if (it.status > 3) throw new ActionError('The owner already got it back. Thank you!');
     if (await one('SELECT id FROM sightings WHERE item_id = ? AND user_id = ?', [itemId, uid])) throw new ActionError('You already told the owner. Thank you!');
     await exec('INSERT INTO sightings (item_id, user_id, note) VALUES (?, ?, ?)', [itemId, uid, note]);

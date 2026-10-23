@@ -19,11 +19,13 @@ import { AlertAreas, SightingButton } from '@/components/Community';
 export default async function BrowsePage({ searchParams }: { searchParams: Promise<{ cat?: string; q?: string; view?: string; place?: string }> }) {
   const { user } = await requirePage({ membership: true });
   const { cat = 'All', q = '', view = 'grid', place = '' } = await searchParams;
-  const [t, all, settings, places, help, prefs] = await Promise.all([getT(), getBrowseItems(user.organizationId!, cat, user.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!),
+  const [t, all, settings, places, allHelp, prefs] = await Promise.all([getT(), getBrowseItems(user.organizationId!, cat, user.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!),
     getHelpWanted(user.organizationId!, user.id), getPrefs(user.id)]);
+  const sensitiveHidden = (category: string) => settings.hideSensitive && user.role === 'member' && SENSITIVE_CATEGORIES.includes(category);
+  const help = allHelp.filter(h => !sensitiveHidden(h.category));
   const buildings = [...new Set([...places.map(p => buildingOf(p.name)), ...help.map(h => h.building)])].sort((a, b) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)));
   // Sensitive items stay off the shared list for members; the owner is still told through matching.
-  const hidden = (i: (typeof all)[number]) => settings.hideSensitive && user.role === 'member' && !i.mine && !i.myClaim && SENSITIVE_CATEGORIES.includes(i.category);
+  const hidden = (i: (typeof all)[number]) => !i.mine && !i.myClaim && sensitiveHidden(i.category);
   const needle = q.trim().toLowerCase();
   const items = all.filter(i => i.status >= 2 && !hidden(i) && (!needle || `${i.title} ${i.place}`.toLowerCase().includes(needle)));
   const list = place ? items.filter(i => i.place === place) : items;
@@ -31,6 +33,24 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
   for (const i of items) counts[i.place] = { n: (counts[i.place]?.n ?? 0) + 1 };
   const pins = items.filter(i => i.lat != null && i.lng != null)
     .map(i => ({ id: i.id, lat: i.lat!, lng: i.lng!, title: i.title, sub: placeDate(i.place, i.date, t), href: `/items/${i.id}` }));
+  // Lost reports also lead the default list, so people see them without opening the "Seen these?" tab.
+  const lostHere = view === 'grid' && !place ? help.filter(h => (cat === 'All' || h.category === cat) && (!needle || `${h.title} ${h.place}`.toLowerCase().includes(needle))) : [];
+  const helpCard = (h: (typeof help)[number], anchor: boolean) => (
+    <div className="box helpcard" key={h.id} id={anchor ? `i${h.id}` : undefined}>
+      {h.hasPhoto ? <div className="thumb"><img src={`/api/items/${h.id}/photo`} alt="" /><span className="cat">{t(h.category)}</span></div>
+        : <CategoryArt category={h.category} big />}
+      <span className="badge no" style={{ alignSelf: 'flex-start' }}>{t('Lost')}</span>
+      <b>{h.title}</b>
+      <div className="meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={14} />{placeDate(h.place, h.date, t)}</div>
+      <div className="meta">{t('Reported {time}', { time: when(h.createdAt) })}</div>
+      {user.role === 'member' && (
+        <div className="btnrow" style={{ marginTop: 'auto', paddingTop: 10 }}>
+          <SightingButton itemId={h.id} done={h.iSaw} />
+          <Link className="btn sec" href="/report?kind=found">🙌 {t('I found it')}</Link>
+        </div>
+      )}
+    </div>
+  );
   const link = (p: Record<string, string>) => href('/browse', { cat: cat === 'All' ? '' : cat, q, view: view === 'grid' ? '' : view, place, ...p });
 
   return (
@@ -50,7 +70,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         </div>
       </form>
       {view !== 'help' && <div className="chips">
-        {['All', ...settings.categories.filter(c => !(settings.hideSensitive && user.role === 'member' && SENSITIVE_CATEGORIES.includes(c)))].map(c => <Link key={c} href={link({ cat: c === 'All' ? '' : c })} className={cat === c ? 'on' : ''}>{t(c)}</Link>)}
+        {['All', ...settings.categories.filter(c => !sensitiveHidden(c))].map(c => <Link key={c} href={link({ cat: c === 'All' ? '' : c })} className={cat === c ? 'on' : ''}>{t(c)}</Link>)}
       </div>}
 
       {view === 'plan' && (
@@ -70,31 +90,28 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
         </>
       )}
 
+      {lostHere.length > 0 && (
+        <>
+          <div className="helphead">
+            <b>👀 {t('Have you seen these?')}</b>
+            <span className="meta">{t('Things people in your community lost and are still looking for. If you saw one, tell the owner, or post it if you found it. Only the name, place and date are shown.')}</span>
+          </div>
+          <div className="grid">{lostHere.slice(0, 4).map(h => helpCard(h, false))}</div>
+          {lostHere.length > 4 && <p className="meta"><Link href={link({ view: 'help' })}>{t('Show all')} ({lostHere.length})</Link></p>}
+          <div className="helphead" style={{ marginTop: 20 }}><b>{t('Found items')}</b></div>
+        </>
+      )}
+
       {view === 'help' ? (
         <>
           <div className="helphead">
             <b>{t('Have you seen these?')}</b>
-            <span className="meta">{t('Things people lost in the last 14 days. If you saw one, tell the owner, or post it if you found it. Only the name, place and date are shown.')}</span>
+            <span className="meta">{t('Things people in your community lost and are still looking for. If you saw one, tell the owner, or post it if you found it. Only the name, place and date are shown.')}</span>
           </div>
           {user.role === 'member' && <AlertAreas buildings={buildings} initial={prefs.alertAreas} />}
           {help.length ? (
             <div className="grid">
-              {help.map(h => (
-                <div className="box helpcard" key={h.id} id={`i${h.id}`}>
-                  {h.hasPhoto ? <div className="thumb"><img src={`/api/items/${h.id}/photo`} alt="" /><span className="cat">{t(h.category)}</span></div>
-                    : <CategoryArt category={h.category} big />}
-                  <span className="badge no" style={{ alignSelf: 'flex-start' }}>{t('Lost')}</span>
-                  <b>{h.title}</b>
-                  <div className="meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="pin" size={14} />{placeDate(h.place, h.date, t)}</div>
-                  <div className="meta">{t('Reported {time}', { time: when(h.createdAt) })}</div>
-                  {user.role === 'member' && (
-                    <div className="btnrow" style={{ marginTop: 'auto', paddingTop: 10 }}>
-                      <SightingButton itemId={h.id} done={h.iSaw} />
-                      <Link className="btn sec" href="/report?kind=found">🙌 {t('I found it')}</Link>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {help.map(h => helpCard(h, true))}
             </div>
           ) : <Empty art="search" title={t('Nobody is asking for help right now.')} text={t('When someone loses something and asks for help, it shows here.')} />}
         </>
