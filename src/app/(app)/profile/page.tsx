@@ -3,14 +3,14 @@ import { requirePage } from '@/lib/auth';
 import { GUIDE_URL, ROLE_NAMES } from '@/lib/constants';
 import { getOrganizations } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
+import { getPrefs } from '@/lib/prefs';
 import { LangButton } from '@/components/HeaderControls';
-import { MockButton } from '@/components/ClientBits';
 import { Expandable } from '@/components/Expandable';
 import { Icon } from '@/components/Icon';
 import { Illustration } from '@/components/Illustration';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
 import { Field, Head } from '@/components/ui';
-import { PasswordForm, PrivacySwitches } from './ProfileForms';
+import { DeleteAccount, PasswordForm, PrivacySwitches } from './ProfileForms';
 
 const HOW: [art: string, title: string, text: string][] = [
   ['report', 'Report or post', 'Lost something? Report it. Found something? Post it so everyone can see it.'],
@@ -29,7 +29,7 @@ const FAQ: [q: string, a: string][] = [
 /** Account, community, privacy and help in one place. */
 export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { user, pending } = await requirePage();
-  const [{ tab }, t, orgs] = await Promise.all([searchParams, getT(), getOrganizations()]);
+  const [{ tab }, t, orgs, prefs] = await Promise.all([searchParams, getT(), getOrganizations(), getPrefs(user.id)]);
   const org = orgs.find(o => o.id === user.organizationId);
   const pendOrg = pending ? orgs.find(o => o.id === pending.organizationId) : undefined;
   const tabs: TabDef[] = [
@@ -74,14 +74,14 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       {cur === 'privacy' && (
         <div className="cols even">
-          <PrivacySwitches />
+          <PrivacySwitches shareEmail={prefs.shareEmail} isMember={user.role === 'member'} />
           <div className="box">
             <h2 style={{ marginTop: 0 }}>{t('Your data')}</h2>
             <p className="meta">{t('Download a copy of what the system stores about you.')}</p>
             <div className="btnrow">
               <a className="btn sec" href="/api/me/export" download><Icon name="out" size={16} />{t('Download my data')}</a>
-              <MockButton label="Delete my account" msg="Please contact your administrator" className="btn bad" />
             </div>
+            {user.role !== 'super' && <DeleteAccount />}
           </div>
         </div>
       )}

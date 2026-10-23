@@ -66,7 +66,7 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
             <JourneyPanel j={j} t={t} />
             {i.description && <><div className="sec-title" style={{ marginTop: 16 }}>{t('Your description')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{i.description}</p></>}
             {pair && i.status < 5 && (() => {
-              const { score, why } = scoreMatch({ place: pair.lostPlace, date: pair.lostDate, lat: pair.lostLat, lng: pair.lostLng }, { place: pair.foundPlace, date: pair.foundDate, lat: pair.foundLat, lng: pair.foundLng });
+              const { score, why } = scoreMatch({ place: pair.lostPlace, date: pair.lostDate, lat: pair.lostLat, lng: pair.lostLng, category: pair.lostCategory }, { place: pair.foundPlace, date: pair.foundDate, lat: pair.foundLat, lng: pair.foundLng, category: pair.foundCategory }, pair.aiScore);
               const claimed = pair.claimStatus === 'pending' || pair.claimStatus === 'approved';
               return (
                 <>

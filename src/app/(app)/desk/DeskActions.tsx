@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { decideClaim, handoverClaim } from '@/app/actions';
-import { ID_TYPES } from '@/lib/constants';
 import { useT, useToast } from '@/components/Providers';
 import { ErrorText, Field } from '@/components/ui';
 
@@ -26,12 +25,12 @@ export function DecideButtons({ id }: { id: number }) {
 const CHECKS = ['Photo ID matches the owner', 'Answers match the item'];
 
 /** Handover at the desk: pickup code + ID check. */
-export function HandoverForm({ id, hasCode, ready, itemId }: { id: number; hasCode: boolean; ready: boolean; itemId?: number }) {
+export function HandoverForm({ id, hasCode, ready, itemId, idTypes }: { id: number; hasCode: boolean; ready: boolean; itemId?: number; idTypes: string[] }) {
   const t = useT();
   const toast = useToast();
   const [code, setCode] = useState('');
   const [done, setDone] = useState(CHECKS.map(() => false));
-  const [idType, setIdType] = useState(ID_TYPES[0]);
+  const [idType, setIdType] = useState(idTypes[0]);
   const [err, setErr] = useState('');
   const [busy, start] = useTransition();
   const codeOk = !hasCode || code.replace(/\D/g, '').length === 6;
@@ -56,7 +55,7 @@ export function HandoverForm({ id, hasCode, ready, itemId }: { id: number; hasCo
       ))}
       <div className="two" style={{ marginTop: 12 }}>
         <Field label={t('ID shown')}>
-          <select value={idType} onChange={e => setIdType(e.target.value)}>{ID_TYPES.map(x => <option key={x} value={x}>{t(x)}</option>)}</select>
+          <select value={idType} onChange={e => setIdType(e.target.value)}>{idTypes.map(x => <option key={x} value={x}>{t(x)}</option>)}</select>
         </Field>
       </div>
       <ErrorText msg={t(err)} />

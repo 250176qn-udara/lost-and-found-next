@@ -3,22 +3,24 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { reportItem } from '@/app/actions';
-import { CATEGORIES, MAX_PHOTO_BYTES } from '@/lib/constants';
+import { MAX_PHOTO_BYTES } from '@/lib/constants';
 import type { Kind, Place } from '@/lib/types';
 import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
 import { useT, useToast } from '@/components/Providers';
 import { Callout, ErrorText, Field, Head, Kv } from '@/components/ui';
+import { AiPhotoFill } from '@/components/AiPhotoFill';
 
 const STEPS = ['Type', 'Item', 'Where & when', 'Photo', 'Review'];
 
 /** Five-step report wizard. Colour, brand and marks are saved inside the description. */
-export function ReportForm({ initialKind, isMember, afterPath, places }: { initialKind: Kind; isMember: boolean; afterPath: string; places: Place[] }) {
+export function ReportForm({ initialKind, isMember, afterPath, places, categories, ai = false }:
+  { initialKind: Kind; isMember: boolean; afterPath: string; places: Place[]; categories: string[]; ai?: boolean }) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [kind, setKind] = useState<Kind>(initialKind);
-  const [f, setF] = useState({ title: '', category: CATEGORIES[0], colour: '', brand: '', marks: '', date: '', description: '' });
+  const [f, setF] = useState({ title: '', category: categories[0], colour: '', brand: '', marks: '', date: '', description: '' });
   const [where, setWhere] = useState<PlaceValue>({ place: '', lat: null, lng: null });
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
@@ -95,9 +97,13 @@ export function ReportForm({ initialKind, isMember, afterPath, places }: { initi
 
         {step === 2 && (
           <>
+            {ai && <AiPhotoFill onResult={(g, file) => {
+              setF(x => ({ ...x, title: g.title, category: g.category, colour: g.colour || x.colour, brand: g.brand || x.brand, marks: g.marks || x.marks }));
+              setPhoto(file);
+            }} />}
             <Field label={t('Item name')}><input value={f.title} onChange={set('title')} placeholder={t('e.g. Black wallet')} autoFocus /></Field>
             <div className="two">
-              <Field label={t('Category')}><select value={f.category} onChange={set('category')}>{CATEGORIES.map(c => <option key={c} value={c}>{t(c)}</option>)}</select></Field>
+              <Field label={t('Category')}><select value={f.category} onChange={set('category')}>{categories.map(c => <option key={c} value={c}>{t(c)}</option>)}</select></Field>
               <Field label={t('Colour')}><input value={f.colour} onChange={set('colour')} /></Field>
             </div>
             <div className="two">

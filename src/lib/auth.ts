@@ -16,8 +16,13 @@ export async function getSession() {
 
 /** Current user + their membership state, in the shape the pages expect. */
 export async function loadState(uid: number): Promise<Me | null> {
-  const u = await one<{ id: number; name: string; email: string }>('SELECT id, name, email FROM users WHERE id = ?', [uid]);
+  const u = await one<{ id: number; name: string; email: string; is_super: number }>(
+    'SELECT id, name, email, is_super FROM users WHERE id = ? AND deleted_at IS NULL', [uid]);
   if (!u) return null;
+  // The super admin runs the platform and belongs to no organization.
+  if (Number(u.is_super) === 1) {
+    return { user: { id: u.id, name: u.name, email: u.email, role: 'super', organizationId: null, membershipStatus: null }, pending: null };
+  }
   const m = await one<{ organization_id: number; role: Role }>(
     `SELECT organization_id, role FROM organization_members
      WHERE user_id = ? AND status = 'approved'
@@ -59,6 +64,8 @@ export function startPath(u: User): string {
 export async function requirePage(opts: { roles?: Role[]; membership?: boolean } = {}): Promise<Me> {
   const me = await getMe();
   if (!me) redirect('/login');
+  // The super admin belongs to no organization: organization pages send them back to the Platform.
+  if (opts.membership && me.user.role === 'super') redirect('/orgs');
   if (opts.membership && me.user.membershipStatus !== 'approved') redirect('/community');
   if (opts.roles && !opts.roles.includes(me.user.role)) redirect(startPath(me.user));
   return me;
@@ -86,6 +93,12 @@ export async function requireStaff() {
   const { user } = await requireLogin();
   if (!['staff', 'admin'].includes(user.role) || !user.organizationId) throw new ActionError('Staff only.');
   return { uid: user.id, orgId: user.organizationId };
+}
+
+export async function requireSuper() {
+  const { user } = await requireLogin();
+  if (user.role !== 'super') throw new ActionError('Super admin only.');
+  return { uid: user.id };
 }
 
 export async function requireAdmin() {

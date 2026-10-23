@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(100) NOT NULL,
   email         VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,            -- bcrypt hash, never the plain password
+  deleted_at    DATETIME NULL,                    -- "Delete my account": name/email replaced, can never log in again
+  is_super      TINYINT(1) NOT NULL DEFAULT 0,    -- super admin: runs the platform (adds organizations), belongs to none
   created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -54,6 +56,10 @@ INSERT IGNORE INTO users (id, name, email, password_hash) VALUES
   (3, 'Harbor Admin', 'harbor@example.com', '$2y$10$U8BOoJfma/aJ4Kx0QGpf.OHQByOo0.7w1P.Wrz6Q4rix3nUN6L6EG'),
   (4, 'Nexa Admin',   'nexa@example.com',   '$2y$10$U8BOoJfma/aJ4Kx0QGpf.OHQByOo0.7w1P.Wrz6Q4rix3nUN6L6EG'),
   (5, 'Sara Ito',     'sara@example.com',   '$2y$10$U8BOoJfma/aJ4Kx0QGpf.OHQByOo0.7w1P.Wrz6Q4rix3nUN6L6EG');
+
+-- The platform's super admin (no organization).
+INSERT IGNORE INTO users (id, name, email, password_hash, is_super) VALUES
+  (7, 'Platform Admin', 'super@example.com', '$2y$10$U8BOoJfma/aJ4Kx0QGpf.OHQByOo0.7w1P.Wrz6Q4rix3nUN6L6EG', 1);
 
 INSERT IGNORE INTO organization_members (id, user_id, organization_id, status, role, approved_at) VALUES
   (1, 1, 1, 'approved', 'member', NOW()),
@@ -124,6 +130,8 @@ CREATE TABLE IF NOT EXISTS items (
   INDEX idx_org_kind_status (organization_id, kind, status),
   INDEX idx_reporter (reporter_id),
   CONSTRAINT fk_item_org      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  ai_score        TINYINT UNSIGNED NULL,               -- Gemini's 0-100 score for the current match (NULL = rules only)
+  ai_reason       VARCHAR(300) NULL,                   -- Gemini's short reason, shown to staff only
   CONSTRAINT fk_item_reporter FOREIGN KEY (reporter_id)     REFERENCES users(id)         ON DELETE CASCADE,
   CONSTRAINT fk_item_received FOREIGN KEY (received_by)     REFERENCES users(id)         ON DELETE SET NULL
 ) ENGINE=InnoDB;
@@ -205,6 +213,37 @@ CREATE TABLE IF NOT EXISTS office_messages (
   CONSTRAINT fk_om_msg_item   FOREIGN KEY (item_id)         REFERENCES items(id)         ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- Each organization's rules (Settings). NULL lists = the defaults in src/lib/constants.ts.
+CREATE TABLE IF NOT EXISTS org_settings (
+  organization_id INT UNSIGNED NOT NULL PRIMARY KEY,
+  storage_days    SMALLINT UNSIGNED NOT NULL DEFAULT 90,  -- days an unclaimed found item is kept
+  police_days     TINYINT UNSIGNED NOT NULL DEFAULT 7,    -- report to the police within this many days (Lost Property Act: 1 week)
+  hide_sensitive  TINYINT(1) NOT NULL DEFAULT 0,          -- hide wallets, ID cards, IC cards and phones from Found items
+  categories      TEXT NULL,                              -- JSON array
+  shelves         TEXT NULL,                              -- JSON array
+  id_types        TEXT NULL,                              -- JSON array
+  updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_settings_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Which notifications each user has read (notifications themselves are built from the data).
+CREATE TABLE IF NOT EXISTS notice_reads (
+  user_id    INT UNSIGNED NOT NULL,
+  notice_id  VARCHAR(64) NOT NULL,                     -- e.g. "ca12" = claim 12 approved
+  read_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, notice_id),
+  CONSTRAINT fk_reads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Each user's choices (Notifications / Account → Privacy). No row = the defaults in src/lib/constants.ts.
+CREATE TABLE IF NOT EXISTS user_prefs (
+  user_id      INT UNSIGNED NOT NULL PRIMARY KEY,
+  notify       TEXT NULL,                              -- JSON: {"claims":{"app":true,"email":true}, ...}
+  share_email  TINYINT(1) NOT NULL DEFAULT 1,          -- staff may see my email address on claims and in Messages
+  updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_prefs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Upgrading an existing database (created before handed_in_at existed)? Run this once:
 --   ALTER TABLE items ADD COLUMN handed_in_at TIMESTAMP NULL DEFAULT NULL AFTER received_at;
 -- and (created before disposal records and pickup codes):
@@ -226,3 +265,9 @@ CREATE TABLE IF NOT EXISTS office_messages (
 --   DROP TABLE claim_messages;
 -- and (created before letter reactions):
 --   ALTER TABLE thanks ADD COLUMN reaction VARCHAR(16) NULL AFTER read_at, ADD COLUMN reacted_at TIMESTAMP NULL DEFAULT NULL AFTER reaction;
+-- and (created before saved settings): run the CREATE TABLE org_settings block above.
+-- and (created before saved notifications): run the CREATE TABLE notice_reads and user_prefs blocks above.
+-- and (created before "Delete my account"): ALTER TABLE users ADD COLUMN deleted_at DATETIME NULL AFTER password_hash;
+-- and (created before Gemini matching): ALTER TABLE items ADD COLUMN ai_score TINYINT UNSIGNED NULL, ADD COLUMN ai_reason VARCHAR(300) NULL;
+-- and (created before the super admin): ALTER TABLE users ADD COLUMN is_super TINYINT(1) NOT NULL DEFAULT 0 AFTER deleted_at;
+--   then run the INSERT IGNORE INTO users ... 'super@example.com' line above.

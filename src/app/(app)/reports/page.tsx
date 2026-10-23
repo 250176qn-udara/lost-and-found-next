@@ -1,7 +1,8 @@
 import { requirePage } from '@/lib/auth';
 import { getT } from '@/lib/i18n-server';
 import { getAuditLog, getHotspots, getMonthReport, getReportMonths, monthName, pct } from '@/lib/stats';
-import { GoogleMap } from '@/components/GoogleMap';
+import { MapView } from '@/components/MapView';
+import { FloorPlan } from '@/components/FloorPlan';
 import { CsvButton, PrintButton, SelectNav } from '@/components/ClientBits';
 import { Empty } from '@/components/Illustration';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
@@ -79,7 +80,12 @@ async function Hotspots({ orgId, t }: { orgId: number; t: T }) {
   const busiest = [...h.hours].sort((x, y) => y[1] - x[1])[0];
   return (
     <>
-      <GoogleMap mode="heat" height={380} markers={h.pins.map(p => ({ id: p.place, lat: p.lat, lng: p.lng, title: t(p.place), sub: t('{n} items', { n: p.n }), count: p.n }))} />
+      <FloorPlan heat places={h.places.map(([place]) => place)} counts={Object.fromEntries(h.places.map(([place, n]) => [place, { n }]))} />
+      <p className="meta">{t('Darker rooms: more items lost or found there.')}</p>
+      <details className="mapfold">
+        <summary>{t('Street map')}</summary>
+        <MapView mode="heat" height={380} markers={h.pins.map(p => ({ id: p.place, lat: p.lat, lng: p.lng, title: t(p.place), sub: t('{n} items', { n: p.n }), count: p.n }))} />
+      </details>
       <div className="cols even">
         <div>
           <h2>{t('Ranking')}</h2>

@@ -1,3 +1,4 @@
+import type { NotifyEvent } from './constants';
 export type Lang = 'en' | 'ja';
 export type Role ='member' | 'staff' | 'admin' | 'super';
 export type MembershipStatus = 'pending' | 'approved' | 'rejected' | 'left';
@@ -96,6 +97,8 @@ export type QueueItem = {
 };
 
 export type ScannedItem = {
+  /** An approved claim is waiting: the owner can pick it up. */
+  pickupReady?: boolean;
   id: number;
   kind: Kind;
   title: string;
@@ -155,6 +158,9 @@ export type MatchPair = {
   lostId: number; lostTitle: string; lostPlace: string; lostDate: string | null; lostStatus: ItemStatus; ownerName: string;
   foundId: number; foundTitle: string; foundPlace: string; foundDate: string | null; foundCode: string | null;
   lostLat: number | null; lostLng: number | null; foundLat: number | null; foundLng: number | null;
+  lostCategory: string; foundCategory: string;
+  /** Gemini's score and reason (reason: staff only, it may mention private details). */
+  aiScore: number | null; aiReason: string | null;
 };
 
 /** One line of the audit log, built from the timestamps the tables already keep. */
@@ -162,7 +168,7 @@ export type AuditRow = { at: string; area: 'Items' | 'Claims' | 'Membership'; ac
 
 export type ClaimEvent = { id: number; status: ClaimStatus; claimantId: number; claimantName: string; createdAt: string; decidedAt: string | null; decidedByName: string | null; returnedAt: string | null; returnedByName: string | null; idType: string | null };
 
-export type Notice = { id: string; title: string; text: string; at: string; href: string };
+export type Notice = { id: string; title: string; text: string; at: string; href: string; event?: NotifyEvent; read?: boolean };
 
 export type PendingRequest ={ id: number; name: string; email: string; organization_name: string };
 export type Member = { name: string; email: string; role: Role };

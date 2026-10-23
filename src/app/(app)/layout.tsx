@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { requirePage } from '@/lib/auth';
 import { ROLE_NAMES } from '@/lib/constants';
-import { getMemberNotices, getStaffNotices } from '@/lib/data';
+import { getNotices } from '@/lib/data';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
 import { Bell } from '@/components/Bell';
@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const orgId = user.membershipStatus === 'approved' ? user.organizationId : null;
   const [org, notices] = await Promise.all([
     orgId ? one<{ name: string }>('SELECT name FROM organizations WHERE id = ?', [orgId]) : null,
-    !orgId || user.role === 'super' ? [] : user.role === 'member' ? getMemberNotices(user.id, orgId) : getStaffNotices(orgId),
+    !orgId || user.role === 'super' ? [] : getNotices(user.id, user.role, orgId),
   ]);
 
   return (
@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <div className="mainwrap">
         <header className="topbar">
           <span className="grow" />
-          {orgId && user.role !== 'super' && <Bell ids={notices.map(n => n.id)} storageKey={`lf-read-${user.id}`} />}
+          {orgId && user.role !== 'super' && <Bell unread={notices.filter(n => !n.read).length} label={t('Notifications')} />}
           <LangButton />
           <UserPill name={user.name} role={t(ROLE_NAMES[user.role])} />
         </header>

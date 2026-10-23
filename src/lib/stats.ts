@@ -1,6 +1,6 @@
 import 'server-only';
 import { all, one } from './db';
-import { POLICE_DAYS, STORAGE_DAYS } from './constants';
+import { getOrgSettings } from './settings';
 import type { AuditRow } from './types';
 
 // Numbers for the admin and super-admin screens. Callers check access first with requirePage().
@@ -67,6 +67,7 @@ export async function getCommunityStats(orgId: number, uid: number) {
 
 /** Counts behind the alert list. */
 export async function getAlertCounts(orgId: number) {
+  const { storageDays, policeDays } = await getOrgSettings(orgId);
   const r = await one<Record<string, unknown>>(
     `SELECT
        (SELECT COUNT(*) FROM items WHERE organization_id = ? AND kind = 'found' AND received_at IS NULL AND status < 5
@@ -82,7 +83,7 @@ export async function getAlertCounts(orgId: number) {
           AND received_at IS NOT NULL AND DATEDIFF(NOW(), received_at) >= ?) AS police_late,
        (SELECT COUNT(*) FROM claims c JOIN items i ON i.id = c.found_item_id
           WHERE i.organization_id = ? AND c.status = 'pending') AS pending_claims`,
-    [orgId, orgId, orgId, orgId, STORAGE_DAYS - 14, orgId, orgId, POLICE_DAYS, orgId]);
+    [orgId, orgId, orgId, orgId, Math.max(storageDays - 14, 0), orgId, orgId, policeDays, orgId]);
   return {
     oldQueue: num(r?.old_queue), oldClaims: num(r?.old_claims), handovers: num(r?.handovers),
     expiring: num(r?.expiring), requests: num(r?.requests), policeLate: num(r?.police_late), pendingClaims: num(r?.pending_claims),
@@ -199,7 +200,7 @@ export async function getAuditLog(orgId: number | null, limit = 200): Promise<Au
   }));
 }
 
-export type OrgStats = { id: number; name: string; type: string; users: number; items: number; rate: number };
+export type OrgStats = { id: number; name: string; type: string; users: number; items: number; rate: number; admins: string | null };
 
 export async function getPlatformStats(): Promise<OrgStats[]> {
   const rows = await all<Record<string, unknown>>(
@@ -207,10 +208,12 @@ export async function getPlatformStats(): Promise<OrgStats[]> {
             (SELECT COUNT(*) FROM organization_members m WHERE m.organization_id = o.id AND m.status = 'approved') AS users,
             (SELECT COUNT(*) FROM items i WHERE i.organization_id = o.id) AS items,
             (SELECT COUNT(*) FROM items i WHERE i.organization_id = o.id AND i.kind = 'found' AND i.status >= 2) AS received,
-            (SELECT COUNT(*) FROM items i WHERE i.organization_id = o.id AND i.kind = 'found' AND i.status = 5) AS returned
+            (SELECT COUNT(*) FROM items i WHERE i.organization_id = o.id AND i.kind = 'found' AND i.status = 5) AS returned,
+            (SELECT GROUP_CONCAT(u.name ORDER BY u.name SEPARATOR ', ') FROM organization_members m JOIN users u ON u.id = m.user_id
+              WHERE m.organization_id = o.id AND m.status = 'approved' AND m.role = 'admin') AS admins
      FROM organizations o ORDER BY o.id`);
   return rows.map(r => ({
     id: num(r.id), name: String(r.name), type: String(r.type), users: num(r.users), items: num(r.items),
-    rate: pct(num(r.returned), num(r.received)),
+    rate: pct(num(r.returned), num(r.received)), admins: r.admins ? String(r.admins) : null,
   }));
 }

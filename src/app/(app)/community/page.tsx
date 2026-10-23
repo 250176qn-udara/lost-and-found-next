@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { requirePage } from '@/lib/auth';
 import { getOrganizations } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
@@ -7,6 +8,7 @@ import { RefreshStatusButton, RequestButton } from './CommunityButtons';
 
 export default async function CommunityPage() {
   const { user, pending } = await requirePage();
+  if (user.role === 'super') redirect('/orgs');
   const [t, orgs] = await Promise.all([getT(), getOrganizations()]);
   const isMember = user.membershipStatus === 'approved' && !!user.organizationId;
   const current = isMember ? orgs.find(o => o.id === user.organizationId) : undefined;

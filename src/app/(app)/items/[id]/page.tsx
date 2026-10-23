@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requirePage } from '@/lib/auth';
-import { POLICE_DAYS } from '@/lib/constants';
-import { getClaimEvents, getItemDetail, getThanks } from '@/lib/data';
+import { getOrgSettings } from '@/lib/settings';
+import { getClaimEvents, getItemDetail, getPlaces, getThanks } from '@/lib/data';
 import { finderJourney, ownerJourney, staffJourney, type Journey } from '@/lib/journey';
 import { JourneyBar, JourneyPanel } from '@/components/Journey';
 import { getT } from '@/lib/i18n-server';
@@ -13,7 +13,8 @@ import { HandToOfficeButton } from '@/components/HandToOfficeButton';
 import { CategoryArt, Icon } from '@/components/Icon';
 import { RejectMatchButton } from '@/components/MatchButtons';
 import { QrCode } from '@/components/QrCode';
-import { GoogleMap } from '@/components/GoogleMap';
+import { MapView } from '@/components/MapView';
+import { FloorPlan } from '@/components/FloorPlan';
 import { mapsLink } from '@/lib/geo';
 import { Callout, Head, KindBadge, Kv, placeDate, Timeline } from '@/components/ui';
 
@@ -27,7 +28,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const visible = it && (isStaff || isMine || (it.kind === 'found' && it.status >= 2 && it.status < 5));
   if (!visible) notFound();
 
-  const [t, claims] = await Promise.all([getT(), getClaimEvents(it.id)]);
+  const [t, claims, { policeDays }, places] = await Promise.all([getT(), getClaimEvents(it.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!)]);
   // Members see claims only on their own reports: their own claims (lost report), or that someone claimed the item
   // they found (found item). Names and answers stay hidden from members (showNames below is staff only).
   const shownClaims = isStaff || isMine ? claims : [];
@@ -42,7 +43,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   // has to describe the item themselves and cannot copy the answers.
   const showDetails = it.kind === 'lost' || isStaff || isMine;
   const atOffice = it.kind === 'found' && !!it.receivedAt && it.status < 5;
-  const policeDue = atOffice ? new Date(Date.parse(it.receivedAt!.replace(' ', 'T')) + POLICE_DAYS * 86_400_000).toISOString().slice(0, 10) : null;
+  const policeDue = atOffice ? new Date(Date.parse(it.receivedAt!.replace(' ', 'T')) + policeDays * 86_400_000).toISOString().slice(0, 10) : null;
   const lostId = it.kind === 'lost' ? it.id : it.matchedItemId;
 
   // The journey from the viewer's point of view (owner, finder or staff).
@@ -87,15 +88,24 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
               </div>
             ) : <p className="meta" style={{ whiteSpace: 'pre-line' }}>{it.description}</p>)}
             {!showDetails && <p className="meta" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="shield" size={15} />{t('Private details are hidden. The owner describes them when claiming.')}</p>}
-            {isStaff && it.itemCode && <div style={{ marginTop: 10 }}><QrCode text={it.itemCode} size={96} /></div>}
+            {isStaff && it.itemCode && (
+              <div style={{ marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+                <QrCode text={it.itemCode} size={96} />
+                <Link className="btn sec" href={`/label/${it.id}`}>{t('Print label')}</Link>
+              </div>
+            )}
           </div>
-          {it.lat != null && it.lng != null && (
-            <div className="box" style={{ marginBottom: 16 }}>
-              <h2 style={{ marginTop: 0 }}>{t('Where')}</h2>
-              <GoogleMap markers={[{ id: it.id, lat: it.lat, lng: it.lng, title: t(it.place) }]} height={220} />
-              <a href={mapsLink({ lat: it.lat, lng: it.lng })} target="_blank" rel="noopener noreferrer"><Icon name="map" size={15} /> {t('Open in Google Maps')}</a>
-            </div>
-          )}
+          <div className="box" style={{ marginBottom: 16 }}>
+            <h2 style={{ marginTop: 0 }}>{t('Where')}</h2>
+            <FloorPlan places={[...places.map(p => p.name), it.place]} selected={it.place} />
+            {it.lat != null && it.lng != null && (
+              <details className="mapfold">
+                <summary>{t('Street map')}</summary>
+                <MapView markers={[{ id: it.id, lat: it.lat, lng: it.lng, title: t(it.place) }]} height={220} />
+                <a href={mapsLink({ lat: it.lat, lng: it.lng })} target="_blank" rel="noopener noreferrer"><Icon name="map" size={15} /> {t('Open in Google Maps')}</a>
+              </details>
+            )}
+          </div>
           {it.status === 6 && (
             <Callout kind="red">
               <b>{t('Closed: {method}', { method: t(it.disposalMethod ?? '') })}</b>
@@ -106,7 +116,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             <div className="box" style={{ marginBottom: 16 }}>
               <h2 style={{ marginTop: 0 }}>{t('Office')}</h2>
               <Kv label={t('Report to police by')} value={policeDue} />
-              <p className="meta">{t('If the owner is not found, report the item to the police within {n} days of receiving it.', { n: POLICE_DAYS })}</p>
+              <p className="meta">{t('If the owner is not found, report the item to the police within {n} days of receiving it.', { n: policeDays })}</p>
               <CloseItemButton itemId={it.id} />
             </div>
           )}

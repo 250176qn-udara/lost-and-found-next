@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { getClaimsOnMyFinds, getFinderTasks, getMemberNotices, getMyClaims, getMyItems, getUnthankedReturns } from '@/lib/data';
+import { getClaimsOnMyFinds, getNotices, getFinderTasks, getMyClaims, getMyItems, getUnthankedReturns } from '@/lib/data';
 import { finderJourney, ownerJourney } from '@/lib/journey';
 import { GUIDE_URL } from '@/lib/constants';
 import { JourneyBar } from '@/components/Journey';
@@ -17,7 +17,7 @@ export default async function HomePage() {
   const { user } = await requirePage({ membership: true });
   const orgId = user.organizationId!;
   const [t, mine, claims, community, notices, finderTasks, unthanked] = await Promise.all([
-    getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getCommunityStats(orgId, user.id), getMemberNotices(user.id, orgId),
+    getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getCommunityStats(orgId, user.id), getNotices(user.id, user.role, orgId),
     getFinderTasks(user.id, orgId), getUnthankedReturns(user.id),
   ]);
   const onFinds = await getClaimsOnMyFinds(user.id, orgId);

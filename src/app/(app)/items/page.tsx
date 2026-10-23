@@ -4,7 +4,8 @@ import { STEPS, statusName } from '@/lib/constants';
 import { getLinkCandidates, getMatchPairs, getOrgItems } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
 import { scoreClass, scoreMatch } from '@/lib/match';
-import { GoogleMap } from '@/components/GoogleMap';
+import { MapView } from '@/components/MapView';
+import { FloorPlan, type PlaceCount } from '@/components/FloorPlan';
 import { CsvButton, PrintButton } from '@/components/ClientBits';
 import { CategoryArt, Icon } from '@/components/Icon';
 import { Empty } from '@/components/Illustration';
@@ -117,7 +118,7 @@ async function Matches({ orgId, pairs, t }: { orgId: number; pairs: Awaited<Retu
       </div>
       {pairs.length === 0 && <Empty art="search" title={t('There are no open matches.')} />}
       {pairs.map(p => {
-        const { score, why } = scoreMatch({ place: p.lostPlace, date: p.lostDate, lat: p.lostLat, lng: p.lostLng }, { place: p.foundPlace, date: p.foundDate, lat: p.foundLat, lng: p.foundLng });
+        const { score, why } = scoreMatch({ place: p.lostPlace, date: p.lostDate, lat: p.lostLat, lng: p.lostLng, category: p.lostCategory }, { place: p.foundPlace, date: p.foundDate, lat: p.foundLat, lng: p.foundLng, category: p.foundCategory }, p.aiScore);
         return (
           <div className="box" key={p.lostId} style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -131,6 +132,7 @@ async function Matches({ orgId, pairs, t }: { orgId: number; pairs: Awaited<Retu
               {why.map(w => <span className="pill" key={w}>{t(w)}</span>)}
               {p.claimStatus && <span className="pill mid">{t('Claim: {status}', { status: t(p.claimStatus === 'pending' ? 'Pending' : p.claimStatus === 'approved' ? 'Approved' : 'Rejected') })}</span>}
             </div>
+            {p.aiReason && <p className="meta" style={{ margin: '6px 0 0' }}><b>{t('AI')}:</b> {p.aiReason}</p>}
             {p.lostStatus < 4 && <div className="btnrow" style={{ marginTop: 6 }}><RejectMatchButton lostId={p.lostId} label="Not a match" /></div>}
           </div>
         );
@@ -144,10 +146,24 @@ function ItemMap({ items, t }: { items: Items; t: T }) {
   const lost = items.filter(i => i.kind === 'lost' && i.status < 5);
   const pin = (i: Items[number], accent: boolean) => ({ id: i.id, lat: i.lat!, lng: i.lng!, title: i.title, sub: `${t(i.kind === 'lost' ? 'Lost' : 'Found')} · ${placeDate(i.place, i.date, t)}`, href: `/items/${i.id}`, accent });
   const markers = [...open.filter(i => i.lat != null).map(i => pin(i, false)), ...lost.filter(i => i.lat != null).map(i => pin(i, true))];
+  const tally = new Map<string, { f: number; l: number }>();
+  for (const i of [...open, ...lost]) {
+    const c = tally.get(i.place) ?? { f: 0, l: 0 };
+    if (i.kind === 'found') c.f++; else c.l++;
+    tally.set(i.place, c);
+  }
+  const counts: Record<string, PlaceCount> = Object.fromEntries([...tally].map(([p, c]) => [p, {
+    n: c.f + c.l, sub: [c.f && t('{n} found', { n: c.f }), c.l && t('{n} lost', { n: c.l })].filter(Boolean).join(' · '),
+  }]));
   return (
     <>
-      <GoogleMap markers={markers} height={420} />
-      <p className="meta" style={{ marginTop: -6 }}>{t('Blue pins: found items waiting for owners. Orange pins: open lost reports. Tap a pin for details.')}</p>
+      <FloorPlan places={Object.keys(counts)} counts={counts} />
+      <p className="meta">{t('Each room shows found items waiting for owners and open lost reports.')}</p>
+      <details className="mapfold">
+        <summary>{t('Street map')}</summary>
+        <MapView markers={markers} height={420} />
+        <p className="meta" style={{ marginTop: -6 }}>{t('Blue pins: found items waiting for owners. Orange pins: open lost reports. Tap a pin for details.')}</p>
+      </details>
       <div className="grid">
         {open.map(i => (
           <Link key={i.id} href={`/items/${i.id}`} className="box" style={{ display: 'flex', gap: 12, alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>

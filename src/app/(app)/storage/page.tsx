@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { POLICE_DAYS, SHELF_CAPACITY, SHELVES, STORAGE_DAYS } from '@/lib/constants';
+import { SHELF_CAPACITY } from '@/lib/constants';
+import { getOrgSettings } from '@/lib/settings';
 import { atOffice, getClosedItems, getOrgItems } from '@/lib/data';
 import { getT } from '@/lib/i18n-server';
 import { CsvButton } from '@/components/ClientBits';
@@ -14,7 +15,8 @@ import { Head, href, Prog, Stat } from '@/components/ui';
 export default async function StoragePage({ searchParams }: { searchParams: Promise<{ tab?: string; shelf?: string; code?: string }> }) {
   const { user } = await requirePage({ roles: ['staff', 'admin'] });
   const orgId = user.organizationId!;
-  const [{ tab, shelf = '', code = '' }, t, all, closed] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getClosedItems(orgId)]);
+  const [{ tab, shelf = '', code = '' }, t, all, closed, settings] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getClosedItems(orgId), getOrgSettings(orgId)]);
+  const { policeDays: POLICE_DAYS, storageDays: STORAGE_DAYS, shelves: SHELVES } = settings;
   const stored = all.filter(atOffice);
   const policeLate = stored.filter(i => (i.daysKept ?? 0) >= POLICE_DAYS);
   const tabs: TabDef[] = [

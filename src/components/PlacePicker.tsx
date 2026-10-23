@@ -2,13 +2,14 @@
 
 import { useMemo } from 'react';
 import type { Place } from '@/lib/types';
-import { GoogleMap, type MapMarker } from './GoogleMap';
+import { FloorPlan } from './FloorPlan';
+import { MapView, type MapMarker } from './MapView';
 import { useT } from './Providers';
 
 export type PlaceValue = { place: string; lat: number | null; lng: number | null };
 
 /**
- * Choose one of the organization's places, or type another one, and (optionally) drop a pin on the map.
+ * Tap a room on the campus floor plan, or type another place, and (optionally) drop a pin on the street map.
  * With `formNames`, hidden inputs place / lat / lng are rendered for a plain <form>.
  */
 export function PlacePicker({ places, value, onChange, formNames = false }: {
@@ -23,26 +24,28 @@ export function PlacePicker({ places, value, onChange, formNames = false }: {
   return (
     <div>
       {places.length > 0 && (
-        <div className="chips" style={{ marginTop: 0 }}>
-          {places.map(p => (
-            <button key={p.id} type="button" className={value.place === p.name ? 'on' : ''}
-              onClick={() => onChange({ place: p.name, lat: p.lat, lng: p.lng })}>{t(p.name)}</button>
-          ))}
-        </div>
+        <>
+          <p className="meta" style={{ margin: '0 0 8px' }}>{t('Tap the room where it was lost or found.')}</p>
+          <FloorPlan places={places.map(p => p.name)} selected={value.place}
+            onPick={name => { const p = places.find(x => x.name === name)!; onChange({ place: p.name, lat: p.lat, lng: p.lng }); }} />
+          {known && <p className="meta" style={{ margin: '8px 0 0' }}>{t('Selected: {place}', { place: t(known.name) })}</p>}
+        </>
       )}
-      <div className="field">
+      <div className="field" style={{ marginTop: 12 }}>
         <label>{t(places.length ? 'Or type another place' : 'Place')}</label>
         <input value={known ? '' : value.place} placeholder={t('e.g. Bus stop in front of the school')} maxLength={100}
           onChange={e => onChange({ place: e.target.value, lat: value.lat, lng: value.lng })} />
       </div>
-      <p className="meta" style={{ margin: '0 0 8px' }}>{t('Tap the map to mark the exact spot (optional).')}</p>
-      <GoogleMap markers={markers} picked={picked} onPick={p => onChange({ place: value.place, lat: p.lat, lng: p.lng })} height={300} />
-      {picked && (
-        <p className="meta" style={{ marginTop: -6 }}>
-          {t('Pin: {lat}, {lng}', { lat: picked.lat.toFixed(5), lng: picked.lng.toFixed(5) })}{' '}
-          <button type="button" className="linkbtn" onClick={() => onChange({ ...value, lat: null, lng: null })}>{t('Remove pin')}</button>
-        </p>
-      )}
+      <details className="mapfold" open={!!picked && !known}>
+        <summary>{t('Outside the buildings? Mark the spot on the map (optional)')}</summary>
+        <MapView markers={markers} picked={picked} onPick={p => onChange({ place: value.place, lat: p.lat, lng: p.lng })} height={300} />
+        {picked && (
+          <p className="meta" style={{ marginTop: -6 }}>
+            {t('Pin: {lat}, {lng}', { lat: picked.lat.toFixed(5), lng: picked.lng.toFixed(5) })}{' '}
+            <button type="button" className="linkbtn" onClick={() => onChange({ ...value, lat: null, lng: null })}>{t('Remove pin')}</button>
+          </p>
+        )}
+      </details>
       {formNames && (
         <>
           <input type="hidden" name="place" value={value.place} />

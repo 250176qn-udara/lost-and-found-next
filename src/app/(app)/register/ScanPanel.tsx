@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useTransition, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 import { scanItem } from '@/app/actions';
 import { statusName } from '@/lib/constants';
 import type { ScannedItem } from '@/lib/types';
 import { useT, useToast } from '@/components/Providers';
 import Link from 'next/link';
 import { placeDate, Stepper } from '@/components/ui';
+import { itemCodeFrom, QrScanner } from '@/components/QrScanner';
 
 type Scan = [time: string, code: string, title: string];
 // Kept for the browser tab's lifetime so the list survives moving between pages (like SCANS in app.js).
 let recentScans: Scan[] = [];
 
-export function ScanPanel() {
+export function ScanPanel({ initialCode = '' }: { initialCode?: string }) {
   const t = useT();
   const toast = useToast();
   const [code, setCode] = useState('');
@@ -21,9 +22,8 @@ export function ScanPanel() {
   const [scans, setScans] = useState<Scan[]>(recentScans);
   const [busy, start] = useTransition();
 
-  function lookUp(e: FormEvent) {
-    e.preventDefault();
-    const v = code.trim().toUpperCase();
+  const find = useCallback((raw: string) => {
+    const v = itemCodeFrom(raw);
     if (!v) return toast('Enter an item ID first');
     setCode(v);
     start(async () => {
@@ -39,11 +39,19 @@ export function ScanPanel() {
       recentScans = [[time, v, r.item.title] as Scan, ...recentScans].slice(0, 5);
       setScans(recentScans);
     });
+  }, [toast]);
+  function lookUp(e: FormEvent) {
+    e.preventDefault();
+    find(code);
   }
+  // /register?tab=lookup&code=LF-… looks the item up right away.
+  const first = useRef(initialCode);
+  useEffect(() => { if (first.current) find(first.current); first.current = ''; }, [find]);
 
   return (
     <>
       <form className="box" style={{ maxWidth: 640, marginBottom: 16 }} onSubmit={lookUp}>
+        <QrScanner onCode={find} />
         <div className="field">
           <label htmlFor="scanId">{t('Item ID')}</label>
           <input id="scanId" value={code} placeholder="LF-2026-0148" onChange={e => setCode(e.target.value)} autoFocus />
@@ -58,7 +66,7 @@ export function ScanPanel() {
       ) : (
         <div className="box">
           <b>{t('Ready to scan')}</b>
-          <div className="meta">{t('Point a scanner at the QR label, or type the item ID below. The item’s page opens right away.')}</div>
+          <div className="meta">{t('Scan the QR label or the owner’s pickup pass with the camera, use a USB scanner, or type the item ID.')}</div>
         </div>
       )}
 
@@ -87,7 +95,17 @@ function ScanCard({ it }: { it: ScannedItem }) {
         <div>{t('Reported by: {name}', { name: it.reporterName })}</div>
       </div>
       <Stepper n={Math.min(n, 5)} t={t} />
-      <p style={{ margin: '14px 0 0' }}><Link className="btn sec" href={`/items/${it.id}`}>{t('Open the item')}</Link></p>
+      <p style={{ margin: '14px 0 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Link className="btn sec" href={`/items/${it.id}`}>{t('Open the item')}</Link>
+        <Link className="btn sec" href={`/label/${it.id}?then=/register?tab=lookup`}>{t('Print label')}</Link>
+      </p>
+      {it.pickupReady && (
+        <div className="hidden-note" style={{ marginTop: 14 }}>
+          <b>{t('The owner is approved and can pick this up.')}</b>
+          <div className="meta">{t('Check their photo ID and pickup code at the handover.')}</div>
+          <p style={{ margin: '8px 0 0' }}><Link className="btn" href="/desk?tab=pickups">{t('Go to handover')}</Link></p>
+        </div>
+      )}
       {n < 3 && <p style={{ margin: '14px 0 0' }} className="meta">{t('No claims yet.')}</p>}
     </div>
   );

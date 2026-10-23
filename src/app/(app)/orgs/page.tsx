@@ -7,7 +7,7 @@ import { AddOrganizationButton } from './AddOrganizationButton';
 
 const AREAS = ['All', 'Items', 'Claims', 'Membership'];
 
-// Super admin. The database has no "super admin" role yet, so nobody can open this page until one is added.
+// Super admin (users.is_super): every organization, adding new ones, and the system audit log.
 export default async function PlatformPage({ searchParams }: { searchParams: Promise<{ tab?: string; a?: string }> }) {
   await requirePage({ roles: ['super'] });
   const [{ tab, a = 'All' }, t, orgs] = await Promise.all([searchParams, getT(), getPlatformStats()]);
@@ -32,8 +32,8 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pro
           <Bars data={orgs.map(o => [t(o.name), o.items])} />
           <div className="toolbar" style={{ marginTop: 20 }}><span className="grow" /><AddOrganizationButton /></div>
           <table>
-            <thead><tr><th>{t('Name')}</th><th>{t('Type')}</th><th>{t('Users')}</th><th>{t('Items')}</th><th>{t('Return rate')}</th></tr></thead>
-            <tbody>{orgs.map(o => <tr key={o.id}><td><b>{t(o.name)}</b></td><td>{t(o.type)}</td><td>{o.users}</td><td>{o.items}</td><td style={{ minWidth: 120 }}><Prog pct={o.rate} /> <span className="meta">{o.rate}%</span></td></tr>)}</tbody>
+            <thead><tr><th>{t('Name')}</th><th>{t('Type')}</th><th>{t('Admins')}</th><th>{t('Users')}</th><th>{t('Items')}</th><th>{t('Return rate')}</th></tr></thead>
+            <tbody>{orgs.map(o => <tr key={o.id}><td><b>{t(o.name)}</b></td><td>{t(o.type)}</td><td>{o.admins ?? <span className="meta">{t('None')}</span>}</td><td>{o.users}</td><td>{o.items}</td><td style={{ minWidth: 120 }}><Prog pct={o.rate} /> <span className="meta">{o.rate}%</span></td></tr>)}</tbody>
           </table>
         </>
       )}

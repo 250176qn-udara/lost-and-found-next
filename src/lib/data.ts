@@ -1,4 +1,7 @@
 import 'server-only';
+import { cache } from 'react';
+import type { NotifyEvent } from './constants';
+import { getPrefs, getReadIds } from './prefs';
 import { all, one } from './db';
 import { num } from './geo';
 import { claimRow, itemRow } from './items';
@@ -68,11 +71,13 @@ export async function getClaimsQueue(orgId: number): Promise<Claim[]> {
     `SELECT c.id, c.status, c.created_at, c.answers, c.found_item_id, c.decided_at,
             i.title AS item_title, i.place AS item_place, i.item_date, i.item_code, i.shelf,
             i.description AS found_description,
-            c.claimant_id, u.name AS claimant_name, u.email AS claimant_email,
+            c.claimant_id, u.name AS claimant_name,
+            IF(COALESCE(up.share_email, 1) = 1, u.email, NULL) AS claimant_email, -- the member may hide it (Account → Privacy)
             l.description AS lost_description, (i.received_at IS NOT NULL) AS at_office, (i.handed_in_at IS NOT NULL) AS handed_in, (c.pickup_code IS NOT NULL) AS has_code, f.name AS finder_name
      FROM claims c
      JOIN items i ON i.id = c.found_item_id
      JOIN users u ON u.id = c.claimant_id
+     LEFT JOIN user_prefs up ON up.user_id = c.claimant_id
      JOIN users f ON f.id = i.reporter_id
      LEFT JOIN items l ON l.id = c.lost_item_id
      WHERE i.organization_id = ? AND c.status IN ('pending','approved')
@@ -165,6 +170,7 @@ export async function getMatchPairs(orgId: number, uid?: number): Promise<(Match
             l.lat AS lost_lat, l.lng AS lost_lng, f.lat AS found_lat, f.lng AS found_lng,
             u.name AS owner_name, f.id AS found_id, f.title AS found_title, f.place AS found_place,
             f.item_date AS found_date, f.item_code AS found_code,
+            l.category AS lost_category, f.category AS found_category, l.ai_score, l.ai_reason,
             (SELECT c.status FROM claims c WHERE c.found_item_id = f.id AND c.claimant_id = l.reporter_id
              ORDER BY c.id DESC LIMIT 1) AS claim_status
      FROM items l
@@ -178,6 +184,8 @@ export async function getMatchPairs(orgId: number, uid?: number): Promise<(Match
     foundId: Number(r.found_id), foundTitle: String(r.found_title), foundPlace: String(r.found_place),
     foundDate: s(r.found_date), foundCode: s(r.found_code), claimStatus: (r.claim_status as ClaimStatus) ?? null,
     lostLat: num(r.lost_lat), lostLng: num(r.lost_lng), foundLat: num(r.found_lat), foundLng: num(r.found_lng),
+    lostCategory: String(r.lost_category), foundCategory: String(r.found_category),
+    aiScore: r.ai_score == null ? null : Number(r.ai_score), aiReason: s(r.ai_reason),
   }));
 }
 
@@ -243,7 +251,23 @@ export async function getMemberRows(orgId: number): Promise<MemberRow[]> {
   }));
 }
 
-// ---------- notifications (built from what happened to the user's items; read state is kept in the browser) ----------
+// ---------- notifications (built from what happened to the user's items; read state is in notice_reads) ----------
+
+/** Which kind a notice is, from its id prefix (see the builders below). */
+function noticeEvent(id: string): NotifyEvent {
+  if (id.startsWith('om')) return 'messages';
+  if (id.startsWith('rx') || id.startsWith('ty')) return 'thanks';
+  if (/^m\d/.test(id)) return 'matches';
+  if (id.startsWith('hd') || id.startsWith('q')) return 'items';
+  return 'claims';
+}
+
+/** The user's notifications with read state, without the kinds they turned off in the app. Cached per request. */
+export const getNotices = cache(async (uid: number, role: Role, orgId: number): Promise<Notice[]> => {
+  const [list, prefs, read] = await Promise.all([
+    role === 'member' ? getMemberNotices(uid, orgId) : getStaffNotices(orgId), getPrefs(uid), getReadIds(uid)]);
+  return list.map(n => ({ ...n, event: noticeEvent(n.id), read: read.has(n.id) })).filter(n => prefs.notify[n.event].app);
+});
 
 export async function getMemberNotices(uid: number, orgId: number): Promise<Notice[]> {
   const [claims, matches, handedIn, onMyFinds] = await Promise.all([

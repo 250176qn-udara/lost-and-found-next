@@ -1,64 +1,74 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState, useTransition } from 'react';
+import { markNoticesRead, saveNotifyPrefs } from '@/app/actions';
+import type { NOTIFY_EVENTS, NotifyEvent, NotifyPrefs } from '@/lib/constants';
 import type { Notice } from '@/lib/types';
 import { useT, useToast } from '@/components/Providers';
 import { when } from '@/components/ui';
 
-// Which notifications were read is remembered in this browser only (no table for it yet).
-function loadRead(key: string): string[] {
-  try { return JSON.parse(localStorage.getItem(key) ?? '[]'); } catch { return []; }
-}
-function saveRead(key: string, ids: string[]) {
-  try { localStorage.setItem(key, JSON.stringify(ids)); } catch { /* storage blocked: read state is not kept */ }
-  window.dispatchEvent(new Event('lf-read')); // updates the bell in the top bar
-}
-
-const EVENTS = ['Matches', 'Claims', 'Thanks', 'Storage reminders'];
-
-export function NoticeList({ notices, storageKey }: { notices: Notice[]; storageKey: string }) {
+export function NoticeList({ notices }: { notices: Notice[] }) {
   const t = useT();
-  const toast = useToast();
-  const [read, setRead] = useState<string[]>([]);
+  const [read, setRead] = useState(() => new Set(notices.filter(n => n.read).map(n => n.id)));
   const [onlyUnread, setOnlyUnread] = useState(false);
-  useEffect(() => setRead(loadRead(storageKey)), [storageKey]);
 
   const mark = (ids: string[]) => {
-    const next = [...new Set([...read, ...ids])];
-    setRead(next);
-    saveRead(storageKey, next);
+    const fresh = ids.filter(id => !read.has(id));
+    if (!fresh.length) return;
+    setRead(new Set([...read, ...fresh]));
+    void markNoticesRead(fresh); // the bell updates when the page refreshes
   };
-  const list = notices.filter(n => !onlyUnread || !read.includes(n.id));
+  const list = notices.filter(n => !onlyUnread || !read.has(n.id));
+  const unread = notices.filter(n => !read.has(n.id)).length;
 
   return (
     <>
       <div className="seg tabrow">
         <button className={onlyUnread ? '' : 'on'} onClick={() => setOnlyUnread(false)}>{t('All')}</button>
-        <button className={onlyUnread ? 'on' : ''} onClick={() => setOnlyUnread(true)}>{t('Unread')}</button>
+        <button className={onlyUnread ? 'on' : ''} onClick={() => setOnlyUnread(true)}>{t('Unread')}{unread > 0 && ` (${unread})`}</button>
       </div>
       {list.length ? list.map(n => (
         <Link key={n.id} href={n.href} onClick={() => mark([n.id])} style={{ color: 'inherit', textDecoration: 'none' }}>
           <div className="tag">
             <div className="row">
-              <div><span className={'dot' + (read.includes(n.id) ? ' off' : '')} /><b>{t(n.title)}</b><div className="meta">{n.text}</div></div>
+              <div><span className={'dot' + (read.has(n.id) ? ' off' : '')} /><b>{t(n.title)}</b><div className="meta">{n.text}</div></div>
               <span className="meta">{when(n.at)}</span>
             </div>
           </div>
         </Link>
-      )) : <div className="box meta">{t('No notifications.')}</div>}
-      <div className="btnrow"><button className="btn sec" onClick={() => mark(notices.map(n => n.id))}>{t('Mark all as read')}</button></div>
+      )) : <div className="box meta">{t(onlyUnread ? 'No unread notifications.' : 'No notifications.')}</div>}
+      {unread > 0 && <div className="btnrow"><button className="btn sec" onClick={() => mark(notices.map(n => n.id))}>{t('Mark all as read')}</button></div>}
+    </>
+  );
+}
 
-      {/* MOCK: delivery settings are not saved yet. */}
+/** Per kind: show in the app, send by email. Saved for this user. */
+export function NotifySettings({ prefs, events, email }: { prefs: NotifyPrefs; events: typeof NOTIFY_EVENTS; email: string }) {
+  const t = useT();
+  const toast = useToast();
+  const [p, setP] = useState(prefs);
+  const [busy, start] = useTransition();
+  const flip = (key: NotifyEvent, channel: 'app' | 'email') => {
+    const next = { ...p, [key]: { ...p[key], [channel]: !p[key][channel] } };
+    setP(next);
+    start(async () => {
+      const r = await saveNotifyPrefs(next);
+      if (!r.ok) { setP(p); toast(r.error); } else toast('Setting saved');
+    });
+  };
+  return (
+    <>
       <h2>{t('Notification settings')}</h2>
+      <p className="meta" style={{ marginTop: -4 }}>{t('Emails go to {email}.', { email })}</p>
       <table>
         <thead><tr><th>{t('Event')}</th><th>{t('In-app')}</th><th>{t('Email')}</th></tr></thead>
         <tbody>
-          {EVENTS.map(e => (
-            <tr key={e}>
-              <td>{t(e)}</td>
-              <td><input type="checkbox" defaultChecked onChange={() => toast('Setting saved')} /></td>
-              <td><input type="checkbox" onChange={() => toast('Setting saved')} /></td>
+          {events.map(e => (
+            <tr key={e.key}>
+              <td><b>{t(e.label)}</b><div className="meta">{t(e.sub)}</div></td>
+              <td><input type="checkbox" aria-label={t('In-app')} checked={p[e.key].app} disabled={busy} onChange={() => flip(e.key, 'app')} /></td>
+              <td><input type="checkbox" aria-label={t('Email')} checked={p[e.key].email} disabled={busy} onChange={() => flip(e.key, 'email')} /></td>
             </tr>
           ))}
         </tbody>

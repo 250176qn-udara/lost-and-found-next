@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
+import { getOrgSettings } from '@/lib/settings';
 import { getClaimMessages, getClaimsQueue, getQueue } from '@/lib/data';
 import { ClaimChat } from '@/components/ClaimChat';
 import { getT } from '@/lib/i18n-server';
@@ -16,7 +17,7 @@ const ago = (s: string) => Math.max(0, Math.floor((Date.now() - Date.parse(s.rep
 export default async function DeskPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { user } = await requirePage({ roles: ['staff', 'admin'] });
   const orgId = user.organizationId!;
-  const [{ tab }, t, claims, outside] = await Promise.all([searchParams, getT(), getClaimsQueue(orgId), getQueue(orgId)]);
+  const [{ tab }, t, claims, outside, settings] = await Promise.all([searchParams, getT(), getClaimsQueue(orgId), getQueue(orgId), getOrgSettings(orgId)]);
   const pending = claims.filter(c => c.status === 'pending');
   const msgs = await getClaimMessages(claims.map(c => c.id));
   const newReply = (id: number) => (msgs[id] ?? []).some(m => !m.fromStaff && !m.readAt);
@@ -46,7 +47,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
               <div className="sec-title">{t('What the claimant says')}</div>
               <div className="cmp" style={{ display: 'block', margin: 0 }}><div style={{ whiteSpace: 'pre-line' }}>{c.answers}</div></div>
               {c.lostDescription && <><div className="sec-title">{t('Their lost report')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{c.lostDescription}</p></>}
-              <Kv label={t('Email')} value={c.claimantEmail} />
+              <Kv label={t('Email')} value={c.claimantEmail ?? t('Hidden by the member')} />
             </div>
             <div>
               <div className="sec-title">{t('Private details of the found item')}</div>
@@ -79,7 +80,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
                 : <><b>{t('The item is still with the finder')}</b><div className="meta">{t('Ask {name} to bring it to the office, then hand it to the owner here.', { name: c.finderName ?? '' })}</div></>}
             </Callout>
           )}
-          <HandoverForm id={c.id} hasCode ready={!!c.atOffice} itemId={c.foundItemId} />
+          <HandoverForm id={c.id} hasCode ready={!!c.atOffice} itemId={c.foundItemId} idTypes={settings.idTypes} />
           <ClaimChat claimId={c.id} messages={msgs[c.id] ?? []} viewer="staff" open messagesHref={`/messages?with=${c.claimantId}`} />
         </Expandable>
       )) : <Empty art="done" title={t('No pickups waiting.')} text={t('Approved claims appear here until the owner collects the item.')} />)}

@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from 'react';
 import { deletePlace, savePlace } from '@/app/actions';
 import type { Place } from '@/lib/types';
-import { GoogleMap, type MapMarker } from '@/components/GoogleMap';
+import { MapView, type MapMarker } from '@/components/MapView';
+import { FloorPlan } from '@/components/FloorPlan';
 import { useT, useToast } from '@/components/Providers';
 import { ErrorText, Field } from '@/components/ui';
 
@@ -40,9 +41,10 @@ export function PlacesEditor({ places }: { places: Place[] }) {
     <div className="cols">
       <div className="box">
         <h2 style={{ marginTop: 0 }}>{t(draft.id ? 'Edit place' : 'Add a place')}</h2>
-        <Field label={t('Name')}><input value={draft.name} maxLength={100} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder={t('e.g. Library 2F')} /></Field>
-        <p className="meta" style={{ margin: '0 0 8px' }}>{t('Click the map to set the pin.')}</p>
-        <GoogleMap markers={markers} picked={draft.lat !== null ? { lat: draft.lat, lng: draft.lng! } : null}
+        <Field label={t('Name')}><input value={draft.name} maxLength={100} onChange={e => setDraft({ ...draft, name: e.target.value })} placeholder={t('e.g. Bldg A · Lab 4F')} /></Field>
+        <p className="meta" style={{ margin: '-6px 0 8px' }}>{t('Name rooms like “Bldg A · Lab 2F” (building · room floor) so they appear on the floor plan.')}</p>
+        <p className="meta" style={{ margin: '0 0 8px' }}>{t('Optional: click the street map to set the pin.')}</p>
+        <MapView markers={markers} picked={draft.lat !== null ? { lat: draft.lat, lng: draft.lng! } : null}
           onPick={p => setDraft({ ...draft, lat: p.lat, lng: p.lng })} height={320} />
         <ErrorText msg={t(err)} />
         <div className="btnrow" style={{ marginTop: 0 }}>
@@ -53,6 +55,7 @@ export function PlacesEditor({ places }: { places: Place[] }) {
       <div className="box">
         <h2 style={{ marginTop: 0 }}>{t('Places on the list')} <span className="meta">({places.length})</span></h2>
         {places.length === 0 && <p className="meta">{t('No places yet. Members can still type a place.')}</p>}
+        {places.length > 0 && <div style={{ marginBottom: 12 }}><FloorPlan places={places.map(p => p.name)} selected={draft.name || null} /></div>}
         {places.map(p => (
           <div key={p.id} className="sw">
             <span><b>{t(p.name)}</b><div className="meta">{p.lat !== null ? `${p.lat.toFixed(5)}, ${p.lng!.toFixed(5)}` : t('No pin')}</div></span>

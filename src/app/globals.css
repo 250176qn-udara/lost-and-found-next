@@ -222,6 +222,29 @@ main .auth-page{min-height:60vh;background:none}
 .pass .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:20px;font-weight:700;letter-spacing:.04em;margin:8px 0 2px;color:var(--ink)}
 .qrsvg{display:block;margin:10px auto}
 .mapbox{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:14px}
+.fp{margin-bottom:12px}
+.fp-building{border:2px solid var(--ink);border-radius:10px;background:#fff;overflow:hidden}
+.fp-floor{display:flex;border-top:1px solid var(--line)}
+.fp-floor:first-child{border-top:0}
+.fp-floor.nofloor{background:#f8fafc;border-top:2px dashed var(--line)}
+.fp-fl{flex:0 0 52px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--mute);background:#f1f5f9;border-right:1px solid var(--line)}
+.fp-rooms{flex:1;display:flex;flex-wrap:wrap;gap:6px;padding:8px;min-width:0}
+.fp-room{position:relative;flex:1 1 120px;min-height:58px;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 34px 8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit;font-size:13px;text-align:left;text-decoration:none;cursor:default}
+button.fp-room,a.fp-room{cursor:pointer}
+button.fp-room:hover,a.fp-room:hover{border-color:var(--brand);background:var(--brand-bg)}
+.fp-room.has{border-color:var(--brand)}
+.fp-room.on{border:2px solid var(--brand-dk);background:var(--brand-bg);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.fp-room.hot1{background:#fef3c7}.fp-room.hot2{background:#fdba74}.fp-room.hot3{background:#f87171;color:#fff}
+.fp-label{font-weight:600;line-height:1.25}
+.fp-n{position:absolute;top:6px;right:8px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--brand);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+.fp-room.hot3 .fp-n,.fp-room.hot2 .fp-n{background:#7f1d1d}
+.fp-sub{font-size:12px;color:var(--mute)}
+.fp-room.hot3 .fp-sub{color:#fff}
+.mapfold{margin:8px 0 14px}
+.mapfold summary{cursor:pointer;color:var(--brand-dk);font-size:14px;margin-bottom:8px}
+.lfpin-wrap{background:none;border:0}
+.lfpin{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);color:#fff;font:700 11px/1 system-ui}
+.lfpin.blue{background:#2563eb}.lfpin.orange{background:#d97706}.lfpin.red{background:#dc2626}
 .mapbox svg{width:100%;height:auto;display:block}
 .mapbox .zone{cursor:pointer}
 .mapbox .zone:hover rect{stroke:var(--brand);stroke-width:3}
@@ -317,10 +340,20 @@ nav a::before{display:none}
 .sec-title{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);margin:14px 0 8px}
 .sec-title:first-child{margin-top:0}
 .hidden-note{background:#fff7ed;border:1px dashed #fdba74;border-radius:8px;padding:10px 12px;font-size:14px}
+.aifill{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--brand-bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.aifill b{display:inline-flex;align-items:center;gap:6px;color:var(--brand-dk)}
+.kvline{margin-top:6px}.kvline code{font-size:15px}.otp{font-size:18px!important;font-weight:700;letter-spacing:.06em;background:#fff;padding:2px 8px;border-radius:6px;user-select:all}
 .hidden-note .meta{display:flex;align-items:center;gap:6px;color:#c2410c;margin-bottom:4px}
 
 /* ---------- pickup pass ---------- */
 .pass .pin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:.3em;color:var(--brand-dk);background:var(--brand-bg);border-radius:10px;padding:6px 0 6px .3em;margin:10px 0}
+.label{display:flex;gap:18px;align-items:center;border:2px dashed var(--line);border-radius:12px;padding:16px;background:#fff;color:#111}
+.label .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;letter-spacing:.04em}
+@media print{.label{border:1px solid #000;break-inside:avoid}}
+.scanner{margin:6px 0 4px}
+.scanview{position:relative;width:100%;max-width:420px;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden}
+.scanview video{width:100%;height:100%;object-fit:cover;display:block}
+.scanframe{position:absolute;inset:18% 24%;border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
 .codeinput{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.3em;font-size:20px;text-align:center}
 
 /* ---------- how-it-works steps ---------- */

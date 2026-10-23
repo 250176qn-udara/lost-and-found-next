@@ -4,19 +4,23 @@
 // Next.js checks the Origin header of every Server Action, which replaces the old CSRF token.
 
 import bcrypt from 'bcryptjs';
-import { randomInt } from 'node:crypto';
+import { randomInt, randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { handle, maxLen, parseDate, parsePhoto, str, type Result } from '@/lib/action';
-import { ActionError, getSession, loadState, requireAdmin, requireLogin, requireMember, requireStaff, startPath } from '@/lib/auth';
+import { ActionError, getSession, loadState, requireAdmin, requireLogin, requireMember, requireStaff, requireSuper, startPath } from '@/lib/auth';
+import { APP_URL, sendMail } from '@/lib/mail';
 import { all, exec, one, transaction } from '@/lib/db';
 import { DEV_DEFAULT_PASSWORD, DEV_LOGIN } from '@/lib/devlogin';
-import { DISPOSAL_METHODS } from '@/lib/constants';
+import { DISPOSAL_METHODS, NOTIFY_EVENTS, ORG_TYPES, SETTING_LIMITS, type NotifyPrefs } from '@/lib/constants';
 import { CARD_DESIGNS, GIFT_AMOUNTS, GIFT_BRANDS, THANKS_REACTIONS } from '@/lib/gifts';
 import { giftProviderReady, issueGiftCode } from '@/lib/gift-provider';
 import { charge, refund } from '@/lib/payjp';
-import { APP_URL, sendMail } from '@/lib/mail';
-import { applyMatch, findMatchFor } from '@/lib/items';
+import { emailStaff, emailUser, savePrefs } from '@/lib/prefs';
+import { applyMatch, findMatch } from '@/lib/items';
+import { describePhotoWithGemini, geminiReady, imagePart, type PhotoGuess } from '@/lib/gemini';
+import { getOrgSettings } from '@/lib/settings';
+import { getLang } from '@/lib/i18n-server';
 import { now } from '@/lib/session';
 import type { ItemStatus, Kind, Lang, ScannedItem } from '@/lib/types';
 
@@ -38,12 +42,12 @@ export async function login(email: string, password: string): Promise<Result<{ t
     email = email.trim().toLowerCase();
     if (DEV_LOGIN) {
       // Development shortcut: the name (or email) is enough. See src/lib/devlogin.ts.
-      const found = await all<{ id: number }>('SELECT id FROM users WHERE email = ? OR LOWER(name) = ? LIMIT 2', [email, email]);
+      const found = await all<{ id: number }>('SELECT id FROM users WHERE (email = ? OR LOWER(name) = ?) AND deleted_at IS NULL LIMIT 2', [email, email]);
       if (found.length === 0) throw new ActionError('No account with this name or email.');
       if (found.length > 1) throw new ActionError('More than one account has this name. Use the email instead.');
       return signIn(found[0].id);
     }
-    const u = await one<{ id: number; password_hash: string }>('SELECT id, password_hash FROM users WHERE email = ?', [email]);
+    const u = await one<{ id: number; password_hash: string }>('SELECT id, password_hash FROM users WHERE email = ? AND deleted_at IS NULL', [email]);
     if (!u || !(await bcrypt.compare(password, u.password_hash))) throw new ActionError('Invalid email or password.');
     return signIn(u.id);
   });
@@ -151,6 +155,11 @@ export async function reportItem(fd: FormData): Promise<Result<{ matched: boolea
       [orgId, uid, kind, title, category, place, pin.lat, pin.lng, itemDate, desc || null, photo, kind === 'found' ? 2 : 1])).insertId;
     if (kind === 'found') await assignCode(id);
     const matched = await matchNewItem(orgId, kind, category, place, itemDate, id, pin);
+    if (kind === 'found') await emailStaff(orgId, 'items', {
+      subject: ['拾得物が投稿されました', 'A member posted a found item'],
+      ja: [`会員が拾得物「${title}」（${place}）を投稿しました。`], en: [`A member posted a found item: "${title}" (${place}).`],
+      path: `/items/${id}`,
+    }, uid);
     refresh();
     return { matched };
   });
@@ -167,14 +176,47 @@ async function assignCode(id: number): Promise<string> {
 
 /** Looks for a match for an item that has none yet and links both sides. Returns whether one was found. */
 async function matchNewItem(orgId: number, kind: Kind, category: string, place: string, date: string | null, id: number, pin: Pin) {
-  const matchId = await findMatchFor(orgId, kind, category, place, date, id, pin);
-  if (matchId === null) return false;
-  await applyMatch(id, matchId);
-  await applyMatch(matchId, id);
+  const m = await findMatch(orgId, kind, category, place, date, id, pin);
+  if (m === null) return false;
+  const matchId = m.id;
+  const ai = { score: m.aiScore, reason: m.aiReason };
+  await applyMatch(id, matchId, undefined, ai);
+  await applyMatch(matchId, id, undefined, ai);
+  await mailMatch(kind === 'lost' ? id : matchId);
   return true;
 }
 
-export async function receiveAndRegister(fd: FormData): Promise<Result<{ itemCode: string; shelf: string }>> {
+/** Tells the owner of a lost report that a found item may be theirs. */
+async function mailMatch(lostId: number) {
+  const r = await one<{ reporter_id: number; title: string }>('SELECT reporter_id, title FROM items WHERE id = ?', [lostId]);
+  if (!r) return;
+  await emailUser(r.reporter_id, 'matches', {
+    subject: ['落とし物が見つかったかもしれません', 'We may have found your item'],
+    ja: [`届け出た「${r.title}」に似た拾得物が見つかりました。`, 'アプリで確認し、自分の物なら「これは私のものです」を押してください。'],
+    en: [`A found item looks like the "${r.title}" you reported.`, 'Check it in the app and press "This is mine" if it is yours.'],
+    path: '/my-items',
+  });
+}
+
+/** "Fill in from photo": Gemini looks at the photo and suggests the form fields. Nothing is saved. */
+export async function suggestFromPhoto(fd: FormData): Promise<Result<{ guess: PhotoGuess }>> {
+  return handle(async () => {
+    const { orgId } = await requireMember();
+    if (!geminiReady()) throw new ActionError('AI is not set up. Ask the administrator to add a Gemini API key.');
+    const part = imagePart(await parsePhoto(fd.get('photo')));
+    if (!part) throw new ActionError('Please choose a photo.');
+    const [{ categories }, lang] = await Promise.all([getOrgSettings(orgId), getLang()]);
+    try {
+      const guess = await describePhotoWithGemini(part, categories);
+      return { guess: { ...guess, title: lang === 'ja' && guess.titleJa ? guess.titleJa : guess.title } };
+    } catch (e) {
+      console.error('[gemini] photo', e);
+      throw new ActionError('The AI could not read this photo right now. Please fill in the form yourself.');
+    }
+  });
+}
+
+export async function receiveAndRegister(fd: FormData): Promise<Result<{ id: number; itemCode: string; shelf: string }>> {
   return handle(async () => {
     const { uid, orgId } = await requireStaff();
     const existingId = Number(fd.get('existing_item_id') ?? 0) || 0;
@@ -216,7 +258,7 @@ export async function receiveAndRegister(fd: FormData): Promise<Result<{ itemCod
     const code = await assignCode(id);
     if (!alreadyMatched) await matchNewItem(orgId, 'found', category, place, itemDate, id, pin);
     refresh();
-    return { itemCode: code, shelf };
+    return { id, itemCode: code, shelf };
   });
 }
 
@@ -228,7 +270,8 @@ export async function scanItem(rawCode: string): Promise<Result<{ item: ScannedI
     const r = await one<Record<string, unknown>>(
       `SELECT i.id, i.kind, i.title, i.category, i.place, i.item_date, i.description, i.status,
               i.item_code, i.shelf, i.finder_name, i.received_at, (i.photo IS NOT NULL) AS has_photo,
-              ru.name AS reporter_name, hu.name AS received_by_name
+              ru.name AS reporter_name, hu.name AS received_by_name,
+              EXISTS(SELECT 1 FROM claims c WHERE c.found_item_id = i.id AND c.status = 'approved') AS pickup_ready
        FROM items i
        JOIN users ru ON ru.id = i.reporter_id
        LEFT JOIN users hu ON hu.id = i.received_by
@@ -241,7 +284,7 @@ export async function scanItem(rawCode: string): Promise<Result<{ item: ScannedI
         status: Number(r.status) as ItemStatus, itemCode: String(r.item_code), shelf: (r.shelf as string) ?? null,
         finderName: (r.finder_name as string) ?? null, receivedAt: (r.received_at as string) ?? null,
         hasPhoto: Boolean(Number(r.has_photo)), reporterName: String(r.reporter_name),
-        receivedByName: (r.received_by_name as string) ?? null,
+        receivedByName: (r.received_by_name as string) ?? null, pickupReady: Boolean(Number(r.pickup_ready)),
       },
     };
   });
@@ -267,6 +310,19 @@ export async function requestClaim(foundItemId: number, rawAnswers: string): Pro
     const lost = await one<{ id: number }>(`SELECT id FROM items WHERE id = ? AND reporter_id = ? AND kind = 'lost'`, [found.matched_item_id ?? 0, uid]);
     await exec('INSERT INTO claims (found_item_id, lost_item_id, claimant_id, answers) VALUES (?, ?, ?, ?)', [foundItemId, lost?.id ?? null, uid, answers]);
     await exec('UPDATE items SET status = GREATEST(status, 3) WHERE id = ?', [foundItemId]);
+    const title = (await one<{ title: string }>('SELECT title FROM items WHERE id = ?', [foundItemId]))?.title ?? '';
+    // The finder is not told who claimed it.
+    await emailUser(found.reporter_id, 'claims', {
+      subject: ['あなたが届けた物に請求がありました', 'Someone claimed the item you found'],
+      ja: [`あなたが届けた「${title}」に、持ち主と名乗る人から請求がありました。事務所が確認します。`],
+      en: [`Someone says the "${title}" you found is theirs. The office will check their answers.`],
+      path: `/items/${foundItemId}`,
+    });
+    await emailStaff(orgId, 'claims', {
+      subject: ['確認待ちの請求があります', 'A claim is waiting for verification'],
+      ja: [`「${title}」に新しい請求があります。回答を確認してください。`], en: [`There is a new claim for "${title}". Please check the answers.`],
+      path: '/desk',
+    }, found.reporter_id);
     refresh();
     return {};
   });
@@ -302,9 +358,38 @@ export async function decideClaim(id: number, action: 'approve' | 'reject'): Pro
       }
     });
     if (action === 'approve') await thankFinder(id, c.found_item_id, staffId);
+    await mailDecision(id);
     refresh();
     return {};
   });
+}
+
+/** Tells the claimant the decision. An approval includes the pickup code (only they receive it). */
+async function mailDecision(claimId: number) {
+  const c = await one<{ claimant_id: number; status: string; pickup_code: string | null; title: string; at_office: number }>(
+    `SELECT c.claimant_id, c.status, c.pickup_code, i.title, (i.received_at IS NOT NULL) AS at_office
+     FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?`, [claimId]);
+  if (!c) return;
+  if (c.status === 'approved') {
+    const ready = Number(c.at_office) === 1;
+    await emailUser(c.claimant_id, 'claims', {
+      subject: ['請求が承認されました：受け取りコード', 'Claim approved — your pickup code'],
+      ja: [`「${c.title}」があなたの物だと確認できました。`, `受け取りコード：${c.pickup_code}`,
+        ready ? '写真付きの身分証を持って事務所へお越しください。このコードを職員に伝えてください。'
+              : '拾い主が事務所に届けたら、アプリでお知らせします。その後、写真付きの身分証とこのコードを持って事務所へお越しください。'],
+      en: [`We confirmed that the "${c.title}" is yours.`, `Pickup code: ${c.pickup_code}`,
+        ready ? 'Come to the office with a photo ID and tell the staff this code.'
+              : 'We will tell you in the app when the finder has brought it to the office. Then come with a photo ID and this code.'],
+      path: '/my-items?tab=claims',
+    });
+  } else if (c.status === 'rejected') {
+    await emailUser(c.claimant_id, 'claims', {
+      subject: ['請求の結果', 'About your claim'],
+      ja: [`「${c.title}」への請求は、回答が登録内容と一致しなかったため承認されませんでした。`, '別の物の可能性があります。落とし物の届け出は引き続き探されます。'],
+      en: [`Your claim for the "${c.title}" was not approved because the answers did not match.`, 'It may be a different item. Your lost report is still being matched.'],
+      path: '/my-items',
+    });
+  }
 }
 
 /**
@@ -312,12 +397,11 @@ export async function decideClaim(id: number, action: 'approve' | 'reject'): Pro
  * The in-app notification comes from the data itself; this sends the email. The owner's identity is never included.
  */
 async function thankFinder(claimId: number, foundItemId: number, staffId: number) {
-  const r = await one<{ title: string; item_code: string | null; received_at: string | null; handed_in_at: string | null; finder_id: number; claimant_id: number; name: string; email: string; org: string; org_id: number }>(
-    `SELECT i.title, i.item_code, i.received_at, i.handed_in_at, i.reporter_id AS finder_id, c.claimant_id, u.name, u.email, o.name AS org, o.id AS org_id
-     FROM items i JOIN claims c ON c.id = ? JOIN users u ON u.id = i.reporter_id JOIN organizations o ON o.id = i.organization_id
+  const r = await one<{ title: string; item_code: string | null; received_at: string | null; handed_in_at: string | null; finder_id: number; claimant_id: number; org: string; org_id: number }>(
+    `SELECT i.title, i.item_code, i.received_at, i.handed_in_at, i.reporter_id AS finder_id, c.claimant_id, o.name AS org, o.id AS org_id
+     FROM items i JOIN claims c ON c.id = ? JOIN organizations o ON o.id = i.organization_id
      WHERE i.id = ?`, [claimId, foundItemId]);
   if (!r || r.received_at || r.handed_in_at || r.finder_id === r.claimant_id) return; // already at (or brought to) the office, or nobody else to thank
-  const link = `${APP_URL}/items/${foundItemId}`;
   const code = r.item_code ?? '—';
   // A chat message from the office (in the app), and the same thanks by email.
   await postOfficeMessage(r.org_id, r.finder_id, staffId, true, [
@@ -325,25 +409,16 @@ async function thankFinder(claimId: number, foundItemId: number, staffId: number
     '',
     `Thank you for your help! The owner of the "${r.title}" you found has been confirmed. Please bring it to the office and tell the staff the item code ${code}.`,
   ].join('\n'), foundItemId);
-  await sendMail(r.email, `【Lost & Found】ありがとうございます：「${r.title}」を事務所へお届けください / Thank you — please bring the item to the office`, [
-    `${r.name} 様`,
-    '',
-    `あなたが見つけてくださった「${r.title}」の持ち主が確認できました。ご協力ありがとうございます。`,
-    `お手数ですが、${r.org}の事務所（受付）へお届けください。受付でアイテムコード ${code} をお伝えください。`,
-    'お届けの後、アプリのアイテムページで「事務所に届ける」を押してください。',
-    link,
-    '',
-    '―――',
-    '',
-    `Dear ${r.name},`,
-    '',
-    `The owner of the "${r.title}" you found has been confirmed. Thank you for your help!`,
-    `Please bring it to the office (front desk) of ${r.org} and tell the staff the item code ${code}.`,
-    'After handing it in, press "Hand over to the office" on the item page in the app:',
-    link,
-    '',
-    `Lost & Found · ${r.org}`,
-  ].join('\n'));
+  await emailUser(r.finder_id, 'claims', {
+    subject: ['ありがとうございます：事務所へお届けください', 'Thank you — please bring the item to the office'],
+    ja: [`あなたが見つけてくださった「${r.title}」の持ち主が確認できました。ご協力ありがとうございます。`,
+      `お手数ですが、${r.org}の事務所（受付）へお届けください。受付でアイテムコード ${code} をお伝えください。`,
+      'お届けの後、アプリのアイテムページで「事務所に届ける」を押してください。'],
+    en: [`The owner of the "${r.title}" you found has been confirmed. Thank you for your help!`,
+      `Please bring it to the office (front desk) of ${r.org} and tell the staff the item code ${code}.`,
+      'After handing it in, press "Hand over to the office" on the item page in the app:'],
+    path: `/items/${foundItemId}`,
+  });
 }
 
 export async function handoverClaim(id: number, idType: string, pickupCode: string): Promise<Result> {
@@ -381,6 +456,13 @@ export async function handToOffice(itemId: number): Promise<Result> {
     if (it.received_at || it.status >= 5) throw new ActionError('This item is already at the office.');
     if (it.handed_in_at) throw new ActionError('You already handed this item to the office.');
     await exec('UPDATE items SET handed_in_at = NOW() WHERE id = ?', [itemId]);
+    const title = (await one<{ title: string }>('SELECT title FROM items WHERE id = ?', [itemId]))?.title ?? '';
+    await emailStaff(orgId, 'items', {
+      subject: ['拾得物が事務所に届けられました', 'A finder handed in an item'],
+      ja: [`拾い主が「${title}」を事務所に届けたと連絡しました。受け取りを確認して、棚を登録してください。`],
+      en: [`A finder says they handed "${title}" to the office. Please confirm it and add a shelf.`],
+      path: '/desk?tab=finders',
+    }, uid);
     refresh();
     return {};
   });
@@ -508,6 +590,15 @@ export async function sendThanks(claimId: number, input: {
       if (chargeId) await refund(chargeId).catch(err => console.error('Refund failed for', chargeId, err));
       throw e instanceof ActionError ? e : new ActionError('Your thanks could not be saved. Any payment was refunded.');
     }
+    const brandName = GIFT_BRANDS.find(b => b.key === brand)?.name ?? brand;
+    await emailUser(c.finder, 'thanks', {
+      subject: code ? ['お礼の手紙とギフトが届きました', 'You received a thank-you letter and a gift'] : ['お礼の手紙が届きました', 'You received a thank-you letter'],
+      ja: [`あなたが見つけた「${c.title}」の持ち主から、お礼の手紙が届きました。`,
+        ...(code ? [`${brandName} ¥${amount} のe-ギフトも届いています。ギフトコード：${code}`] : []), 'アプリで手紙を読めます。'],
+      en: [`The owner of the "${c.title}" you found sent you a thank-you letter.`,
+        ...(code ? [`They also sent you a ${brandName} ¥${amount} e-gift. Gift code: ${code}`] : []), 'Read the letter in the app:'],
+      path: '/my-items?tab=thanks',
+    });
     refresh();
     return {};
   });
@@ -533,12 +624,103 @@ export async function markThanksRead(id: number): Promise<void> {
   await exec('UPDATE thanks SET read_at = COALESCE(read_at, NOW()) WHERE id = ? AND to_user = ?', [id, uid]);
 }
 
+// ---------- organization settings (admins) ----------
+
+async function ensureSettingsRow(orgId: number) {
+  await exec('INSERT IGNORE INTO org_settings (organization_id) VALUES (?)', [orgId]);
+}
+
+export async function saveGeneralSettings(input: { storageDays: number; policeDays: number; hideSensitive: boolean }): Promise<Result> {
+  return handle(async () => {
+    const { orgId } = await requireAdmin();
+    const storage = Number(input.storageDays), police = Number(input.policeDays);
+    if (!SETTING_LIMITS.storageDays.includes(storage)) throw new ActionError('Please choose a storage period.');
+    if (!Number.isInteger(police) || police < SETTING_LIMITS.policeDays.min || police > SETTING_LIMITS.policeDays.max)
+      throw new ActionError('The police deadline must be between 1 and 14 days.');
+    if (police > storage) throw new ActionError('The police deadline cannot be longer than the storage period.');
+    await ensureSettingsRow(orgId);
+    await exec('UPDATE org_settings SET storage_days = ?, police_days = ?, hide_sensitive = ? WHERE organization_id = ?',
+      [storage, police, input.hideSensitive ? 1 : 0, orgId]);
+    refresh();
+    return {};
+  });
+}
+
+/** Saves a whole list (categories, shelves or ID types). Items that use a removed value keep it. */
+export async function saveSettingList(kind: 'categories' | 'shelves' | 'idTypes', values: string[]): Promise<Result> {
+  return handle(async () => {
+    const { orgId } = await requireAdmin();
+    const column = { categories: 'categories', shelves: 'shelves', idTypes: 'id_types' }[kind];
+    if (!column) throw new ActionError('Unknown setting.');
+    const clean = values.map(v => String(v).trim()).filter(Boolean);
+    if (!clean.length) throw new ActionError('Keep at least one entry.');
+    if (clean.length > SETTING_LIMITS.listMax) throw new ActionError('This list is too long.');
+    if (clean.some(v => [...v].length > (kind === 'shelves' ? SETTING_LIMITS.shelfMax : SETTING_LIMITS.itemMax))) throw new ActionError('One of the names is too long.');
+    if (new Set(clean.map(v => v.toLowerCase())).size !== clean.length) throw new ActionError('This name is already on the list.');
+    await ensureSettingsRow(orgId);
+    await exec(`UPDATE org_settings SET ${column} = ? WHERE organization_id = ?`, [JSON.stringify(clean), orgId]);
+    refresh();
+    return {};
+  });
+}
+
+// ---------- notifications and privacy (each user) ----------
+
+export async function markNoticesRead(ids: string[]): Promise<void> {
+  const { user } = await requireLogin();
+  const clean = [...new Set(ids)].filter(id => typeof id === 'string' && /^[a-z0-9-: ]{1,64}$/i.test(id)).slice(0, 300);
+  if (!clean.length) return;
+  await exec(`INSERT IGNORE INTO notice_reads (user_id, notice_id) VALUES ${clean.map(() => '(?, ?)').join(', ')}`,
+    clean.flatMap(id => [user.id, id]));
+  refresh();
+}
+
+export async function saveNotifyPrefs(input: NotifyPrefs): Promise<Result> {
+  return handle(async () => {
+    const { user } = await requireLogin();
+    const clean = {} as NotifyPrefs;
+    for (const e of NOTIFY_EVENTS) clean[e.key] = { app: input?.[e.key]?.app !== false, email: input?.[e.key]?.email === true };
+    await savePrefs(user.id, { notify: clean });
+    refresh();
+    return {};
+  });
+}
+
+export async function saveShareEmail(on: boolean): Promise<Result> {
+  return handle(async () => {
+    const { user } = await requireLogin();
+    await savePrefs(user.id, { shareEmail: Boolean(on) });
+    refresh();
+    return {};
+  });
+}
+
 // ---------- office chat ----------
 
 /** Posts to a member's conversation with the office. senderId null = automatic message from the system. */
 async function postOfficeMessage(orgId: number, memberId: number, senderId: number | null, fromStaff: boolean, body: string, itemId: number | null = null) {
   await exec('INSERT INTO office_messages (organization_id, member_id, sender_id, from_staff, body, item_id) VALUES (?, ?, ?, ?, ?, ?)',
     [orgId, memberId, senderId, fromStaff ? 1 : 0, body, itemId]);
+}
+
+/** Staff wrote: email the member. A member wrote: email the staff who want message emails. */
+async function mailChat(orgId: number, memberId: number, senderId: number, fromStaff: boolean, body: string) {
+  const excerpt = body.length > 300 ? body.slice(0, 300) + '…' : body;
+  if (fromStaff) {
+    await emailUser(memberId, 'messages', {
+      subject: ['事務所からメッセージが届きました', 'New message from the office'],
+      ja: ['事務所からメッセージが届きました：', '', excerpt, '', 'アプリの「メッセージ」から返信できます。'],
+      en: ['The office sent you a message:', '', excerpt, '', 'You can reply under Messages in the app:'],
+      path: '/messages',
+    });
+  } else {
+    const name = (await one<{ name: string }>('SELECT name FROM users WHERE id = ?', [memberId]))?.name ?? '';
+    await emailStaff(orgId, 'messages', {
+      subject: ['会員からメッセージが届きました', 'New message from a member'],
+      ja: [`${name} さんからメッセージ：`, '', excerpt], en: [`Message from ${name}:`, '', excerpt],
+      path: `/messages?with=${memberId}`,
+    }, senderId);
+  }
 }
 
 /** Who may write in a conversation: the member themselves, or staff/admins of that organization (to an approved member). */
@@ -568,6 +750,7 @@ export async function sendOfficeMessage(memberId: number | null, rawBody: string
       if (last && Number(last.from_staff) === 1) itemId = last.item_id;
     }
     await postOfficeMessage(p.orgId, p.memberId, p.uid, p.staff, body, itemId);
+    await mailChat(p.orgId, p.memberId, p.uid, p.staff, body);
     refresh();
     return {};
   });
@@ -603,6 +786,7 @@ export async function sendClaimMessage(claimId: number, rawBody: string): Promis
     if (status !== 'pending' && status !== 'approved') throw new ActionError('This claim is closed.');
     // Goes into the claimant's Messages conversation, tagged with the item.
     await postOfficeMessage(orgId, memberId, uid, staff, body, itemId);
+    await mailChat(orgId, memberId, uid, staff, body);
     refresh();
     return {};
   });
@@ -659,6 +843,7 @@ export async function linkMatch(lostId: number, foundId: number): Promise<Result
       await applyMatch(lostId, foundId, conn);
       await applyMatch(foundId, lostId, conn);
     });
+    await mailMatch(lostId);
     refresh();
     return {};
   });
@@ -696,6 +881,129 @@ export async function removeMember(membershipId: number): Promise<Result> {
 }
 
 // ---------- profile ----------
+
+// ---------- platform (super admin) ----------
+
+/**
+ * Adds an organization with its first administrator. The admin is an existing account (by email) that is not in
+ * another organization yet, or a new account with a one-time password: shown once here, and emailed to them.
+ */
+export async function createOrganization(input: { name: string; type: string; description: string; adminName: string; adminEmail: string }):
+  Promise<Result<{ orgId: number; newPassword: string | null; adminEmail: string }>> {
+  return handle(async () => {
+    const { uid } = await requireSuper();
+    const name = String(input.name ?? '').trim(), type = String(input.type ?? ''), description = String(input.description ?? '').trim();
+    const adminEmail = String(input.adminEmail ?? '').trim().toLowerCase(), adminName = String(input.adminName ?? '').trim();
+    if (name.length < 2) throw new ActionError('Please enter the organization name.');
+    maxLen(name, 150, 'The name is too long.');
+    maxLen(description, 1000, 'The description is too long.');
+    if (!ORG_TYPES.includes(type)) throw new ActionError('Please choose a type.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adminEmail) || adminEmail.length > 190) throw new ActionError('Please enter a valid email address.');
+    if (await one('SELECT id FROM organizations WHERE LOWER(name) = LOWER(?)', [name])) throw new ActionError('An organization with this name already exists.');
+
+    const existing = await one<{ id: number; name: string; is_super: number; deleted_at: string | null }>(
+      'SELECT id, name, is_super, deleted_at FROM users WHERE email = ?', [adminEmail]);
+    if (existing && (existing.deleted_at || Number(existing.is_super))) throw new ActionError('This account cannot be an organization admin.');
+    if (existing) {
+      if (await one(`SELECT id FROM organization_members WHERE user_id = ? AND status = 'approved' LIMIT 1`, [existing.id]))
+        throw new ActionError('This person already belongs to another organization. Use another email.');
+    } else {
+      if (adminName.length < 1) throw new ActionError('Please enter the admin’s name (a new account will be created).');
+      maxLen(adminName, 100, 'The name is too long.');
+    }
+
+    // Readable one-time password (no 0/O/1/l), only for a new account.
+    const newPassword = existing ? null
+      : Array.from(randomBytes(10), b => 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 55]).join('');
+    const orgId = await transaction(async conn => {
+      const id = (await exec('INSERT INTO organizations (name, type, description) VALUES (?, ?, ?)', [name, type, description || null], conn)).insertId;
+      await exec('INSERT INTO org_settings (organization_id) VALUES (?)', [id], conn);
+      const adminId = existing ? existing.id
+        : (await exec('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [adminName, adminEmail, await bcrypt.hash(newPassword!, 10)], conn)).insertId;
+      // Any open join request elsewhere is replaced by this membership.
+      await exec(`UPDATE organization_members SET status = 'left' WHERE user_id = ? AND status = 'pending'`, [adminId], conn);
+      await exec(
+        `INSERT INTO organization_members (user_id, organization_id, status, role, approved_at, approved_by) VALUES (?, ?, 'approved', 'admin', NOW(), ?)`,
+        [adminId, id, uid], conn);
+      return id;
+    });
+
+    const who = existing?.name ?? adminName;
+    await sendMail(adminEmail, `【Lost & Found】${name} の管理者になりました / You are the administrator of ${name}`, [
+      `${who} 様`, '',
+      `Lost & Found に「${name}」が追加され、あなたが管理者になりました。`,
+      ...(newPassword ? [`メール：${adminEmail}`, `初回パスワード：${newPassword}`, 'ログイン後、「アカウント」でパスワードを変更してください。'] : ['いつものアカウントでログインしてください。']),
+      `${APP_URL}/login`, '', '―――', '', `Dear ${who},`, '',
+      `"${name}" was added to Lost & Found and you are its administrator.`,
+      ...(newPassword ? [`Email: ${adminEmail}`, `One-time password: ${newPassword}`, 'After logging in, change your password under Account.'] : ['Log in with your usual account.']),
+      `${APP_URL}/login`, '', 'Next: Settings → Places (rooms), categories and shelves; then invite staff and members.',
+    ].join('\n'));
+    refresh();
+    return { orgId, newPassword, adminEmail };
+  });
+}
+
+/**
+ * "Delete my account". The user row is kept but anonymized, because found items at the office, returns and
+ * thank-you letters must stay on record (the Lost Property Act). What is only about this person is deleted.
+ */
+export async function deleteMyAccount(password: string): Promise<Result> {
+  return handle(async () => {
+    const { user } = await requireLogin();
+    if (user.role === 'super') throw new ActionError('The system administrator account cannot be deleted here.');
+    const u = await one<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', [user.id]);
+    if (!password || !u || !(await bcrypt.compare(password, u.password_hash))) throw new ActionError('The password is wrong.');
+    const uid = user.id;
+
+    // Things that would leave someone else stuck: sort them out first.
+    if (user.role === 'admin' && user.organizationId) {
+      const admins = await one<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM organization_members WHERE organization_id = ? AND role = 'admin' AND status = 'approved'`, [user.organizationId]);
+      if (Number(admins?.n) <= 1) throw new ActionError('You are the only administrator. Make another member an administrator first.');
+    }
+    if (await one(`SELECT c.id FROM claims c WHERE c.claimant_id = ? AND c.status = 'approved'`, [uid]))
+      throw new ActionError('An item is waiting for you at the office. Pick it up first, or ask the office to cancel the claim.');
+    if (await one(
+      `SELECT i.id FROM items i JOIN claims c ON c.found_item_id = i.id AND c.status IN ('pending','approved')
+       WHERE i.reporter_id = ? AND i.kind = 'found' AND i.received_at IS NULL AND i.handed_in_at IS NULL LIMIT 1`, [uid]))
+      throw new ActionError('Someone claimed an item you found. Please hand it to the office first.');
+
+    await transaction(async conn => {
+      // Withdraw my open claims; the item goes back on the list if nobody else claimed it.
+      const mine = await all<{ found_item_id: number }>(`SELECT found_item_id FROM claims WHERE claimant_id = ? AND status = 'pending'`, [uid], conn);
+      await exec(`DELETE FROM claims WHERE claimant_id = ? AND status = 'pending'`, [uid], conn);
+      // My lost reports: unlink their matches, then delete them (description and photo are about me).
+      const lost = (await all<{ id: number }>(`SELECT id FROM items WHERE reporter_id = ? AND kind = 'lost' AND status < 5`, [uid], conn)).map(r => r.id);
+      // Found items I posted that are still with me and unclaimed: nobody needs them on the list any more.
+      const kept = (await all<{ id: number }>(
+        `SELECT id FROM items WHERE reporter_id = ? AND kind = 'found' AND status < 5 AND received_at IS NULL AND handed_in_at IS NULL`, [uid], conn)).map(r => r.id);
+      const gone = [...lost, ...kept];
+      if (gone.length) {
+        const qs = gone.map(() => '?').join(',');
+        const partners = await all<{ id: number }>(`SELECT id FROM items WHERE matched_item_id IN (${qs})`, gone, conn);
+        await exec(`UPDATE items SET matched_item_id = NULL, matched_at = NULL WHERE matched_item_id IN (${qs})`, gone, conn);
+        await exec(`DELETE FROM items WHERE id IN (${qs})`, gone, conn);
+        mine.push(...partners.map(p => ({ found_item_id: p.id })));
+      }
+      // Items whose claim or match disappeared: back to "registered" / "reported" when nothing else is going on.
+      for (const id of new Set(mine.map(m => m.found_item_id))) {
+        const active = await one(`SELECT id FROM claims WHERE found_item_id = ? AND status IN ('pending','approved')`, [id], conn);
+        if (!active) await exec(`UPDATE items SET status = IF(kind = 'found', 2, 1) WHERE id = ? AND status = 3 AND matched_item_id IS NULL`, [id], conn);
+      }
+      await exec('DELETE FROM office_messages WHERE member_id = ?', [uid], conn);
+      await exec('UPDATE thanks SET show_name = 0 WHERE from_user = ?', [uid], conn);
+      await exec('DELETE FROM notice_reads WHERE user_id = ?', [uid], conn);
+      await exec('DELETE FROM user_prefs WHERE user_id = ?', [uid], conn);
+      await exec('DELETE FROM organization_members WHERE user_id = ?', [uid], conn);
+      await exec(
+        `UPDATE users SET name = 'Deleted user', email = ?, password_hash = '!', deleted_at = NOW() WHERE id = ?`,
+        [`deleted-${uid}-${randomBytes(6).toString('hex')}@deleted.invalid`, uid], conn);
+    });
+    (await getSession()).destroy();
+    refresh();
+    return {};
+  });
+}
 
 export async function changePassword(current: string, next: string): Promise<Result> {
   return handle(async () => {
