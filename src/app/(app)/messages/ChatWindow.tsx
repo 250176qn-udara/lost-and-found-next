@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { markOfficeRead, sendOfficeMessage } from '@/app/actions';
 import type { OfficeMessage } from '@/lib/data';
-import { Icon } from '@/components/Icon';
+import { Buddy, BuddyPair } from '@/components/ChatBuddies';
 import { useT } from '@/components/Providers';
 import { ErrorText } from '@/components/ui';
 
@@ -54,21 +54,30 @@ export function ChatWindow({ memberId, messages, viewer, title, meId }: { member
   return (
     <div className="box chatwin">
       <div className="chatwin-head">
-        <span className="avatar">{staff ? title.replace(/^(Mr|Mrs|Ms|Dr)\.?\s+/i, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() : <Icon name="desk" size={18} />}</span>
-        <div><b>{title}</b><div className="meta">{t(staff ? 'Member' : 'Staff and admins of your organization')}</div></div>
+        <BuddyPair size={40} />
+        <div style={{ minWidth: 0 }}><b>{title}</b><div className="meta">{t(staff ? 'Member' : 'Staff and admins of your organization')}</div></div>
+        <span className="grow" />
+        <span className="meta buddy-names">🐻 {t('Kuma (office)')} · 🐰 {t('Usa (student)')}</span>
       </div>
       <div className="chatwin-log" ref={log}>
-        {messages.length === 0 && <p className="meta" style={{ textAlign: 'center', margin: '40px 0' }}>{t(staff ? 'No messages yet. Write the first one below.' : 'Ask the office anything about your lost or found items.')}</p>}
+        {messages.length === 0 && (
+          <div className="chat-empty">
+            <BuddyPair size={72} speech={t(staff ? 'Say hello! Write the first message below.' : 'Hi! We are Kuma and Usa. Ask the office anything about your lost or found items.')} />
+          </div>
+        )}
         {messages.map((m, i) => {
           const mine = m.fromStaff === staff;
           const day = m.createdAt.slice(0, 10);
           return (
             <div key={m.id}>
               {(i === 0 || messages[i - 1].createdAt.slice(0, 10) !== day) && <div className="chatday">{day}</div>}
-              <div className={'bubble' + (mine ? ' me' : '')}>
-                {m.body}
-                {m.itemId && <Link href={`/items/${m.itemId}`} className="bubble-link">{t('Open the item')} →</Link>}
-                <small>{who(m)} · {m.createdAt.slice(11, 16)}{mine && m.readAt ? ` · ${t('Read')}` : ''}</small>
+              <div className={'chatrow' + (mine ? ' me' : '')}>
+                <Buddy who={m.fromStaff ? 'office' : 'student'} size={34} label={m.fromStaff ? t('Kuma (office)') : t('Usa (student)')} />
+                <div className={'bubble' + (mine ? ' me' : '')}>
+                  {m.body}
+                  {m.itemId && <Link href={`/items/${m.itemId}`} className="bubble-link">{t('Open the item')} →</Link>}
+                  <small>{who(m)} · {m.createdAt.slice(11, 16)}{mine && m.readAt ? ` · ${t('Read')}` : ''}</small>
+                </div>
               </div>
             </div>
           );
@@ -80,7 +89,7 @@ export function ChatWindow({ memberId, messages, viewer, title, meId }: { member
       <div className="chat-input">
         <textarea rows={2} maxLength={2000} value={text} onChange={e => setText(e.target.value)} placeholder={t('Write a message')}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
-        <button className="btn" disabled={busy} onClick={() => send()}>{t('Send')}</button>
+        <button className="btn" disabled={busy} onClick={() => send()}>{t(busy ? 'Sending…' : 'Send')}</button>
       </div>
       <p className="meta" style={{ margin: '4px 18px 0' }}>{t('Enter to send, Shift+Enter for a new line.')}</p>
       <ErrorText msg={t(err)} />

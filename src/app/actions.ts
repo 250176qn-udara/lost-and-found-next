@@ -12,12 +12,13 @@ import { ActionError, getSession, loadState, requireAdmin, requireLogin, require
 import { APP_URL, sendMail } from '@/lib/mail';
 import { all, exec, one, transaction } from '@/lib/db';
 import { DEV_DEFAULT_PASSWORD, DEV_LOGIN } from '@/lib/devlogin';
-import { DISPOSAL_METHODS, NOTIFY_EVENTS, ORG_TYPES, SETTING_LIMITS, type NotifyPrefs } from '@/lib/constants';
-import { CARD_DESIGNS, GIFT_AMOUNTS, GIFT_BRANDS, THANKS_REACTIONS } from '@/lib/gifts';
-import { giftProviderReady, issueGiftCode } from '@/lib/gift-provider';
-import { charge, refund } from '@/lib/payjp';
+import { DISPOSAL_METHODS, NOTIFY_EVENTS, ORG_TYPES, SETTING_LIMITS, THANKS_POINTS, type NotifyPrefs } from '@/lib/constants';
+import { CARD_DESIGNS, THANKS_REACTIONS } from '@/lib/gifts';
+import { award } from '@/lib/points';
+import { buildingOf } from '@/lib/places';
 import { emailStaff, emailUser, savePrefs } from '@/lib/prefs';
-import { applyMatch, findMatch } from '@/lib/items';
+import { applyMatch, findMatch, type MatchResult } from '@/lib/items';
+import { scoreMatch } from '@/lib/match';
 import { describePhotoWithGemini, geminiReady, imagePart, type PhotoGuess } from '@/lib/gemini';
 import { getOrgSettings } from '@/lib/settings';
 import { getLang } from '@/lib/i18n-server';
@@ -132,7 +133,7 @@ export async function decideMembership(id: number, action: 'approve' | 'reject')
 
 // ---------- items ----------
 
-export async function reportItem(fd: FormData): Promise<Result<{ matched: boolean }>> {
+export async function reportItem(fd: FormData): Promise<Result<{ matched: boolean; report: ReportMatch }>> {
   return handle(async () => {
     const { uid, orgId } = await requireMember('Join a community before reporting an item.');
     const kind = str(fd, 'kind') as Kind;
@@ -149,19 +150,23 @@ export async function reportItem(fd: FormData): Promise<Result<{ matched: boolea
 
     // A found item is registered right away (status 2, with an item code), so everyone in the community
     // sees it in Found items and can claim it. Staff only record it again if it is brought to the office.
+    const askHelp = kind === 'lost' && fd.get('ask_help') === '1';
     const id = (await exec(
-      `INSERT INTO items (organization_id, reporter_id, kind, title, category, place, lat, lng, item_date, description, photo, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [orgId, uid, kind, title, category, place, pin.lat, pin.lng, itemDate, desc || null, photo, kind === 'found' ? 2 : 1])).insertId;
+      `INSERT INTO items (organization_id, reporter_id, kind, title, category, place, lat, lng, item_date, description, photo, status, ask_help)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [orgId, uid, kind, title, category, place, pin.lat, pin.lng, itemDate, desc || null, photo, kind === 'found' ? 2 : 1, askHelp ? 1 : 0])).insertId;
     if (kind === 'found') await assignCode(id);
-    const matched = await matchNewItem(orgId, kind, category, place, itemDate, id, pin);
+    const found = await matchNewItem(orgId, kind, category, place, itemDate, id, pin);
+    const matched = !!found.match;
+    const report = await reportMatchView(kind, id, found);
+    if (askHelp && !matched) await alertWatchers(orgId, uid, id, title, place);
     if (kind === 'found') await emailStaff(orgId, 'items', {
       subject: ['拾得物が投稿されました', 'A member posted a found item'],
       ja: [`会員が拾得物「${title}」（${place}）を投稿しました。`], en: [`A member posted a found item: "${title}" (${place}).`],
       path: `/items/${id}`,
     }, uid);
     refresh();
-    return { matched };
+    return { matched, report };
   });
 }
 
@@ -175,15 +180,52 @@ async function assignCode(id: number): Promise<string> {
 }
 
 /** Looks for a match for an item that has none yet and links both sides. Returns whether one was found. */
-async function matchNewItem(orgId: number, kind: Kind, category: string, place: string, date: string | null, id: number, pin: Pin) {
-  const m = await findMatch(orgId, kind, category, place, date, id, pin);
-  if (m === null) return false;
-  const matchId = m.id;
-  const ai = { score: m.aiScore, reason: m.aiReason };
+async function matchNewItem(orgId: number, kind: Kind, category: string, place: string, date: string | null, id: number, pin: Pin): Promise<MatchResult> {
+  const r = await findMatch(orgId, kind, category, place, date, id, pin);
+  if (!r.match) return r;
+  const matchId = r.match.id;
+  const ai = { score: r.match.aiScore, reason: r.match.aiReason };
   await applyMatch(id, matchId, undefined, ai);
   await applyMatch(matchId, id, undefined, ai);
   await mailMatch(kind === 'lost' ? id : matchId);
-  return true;
+  return r;
+}
+
+/** What the person who reported sees about the match. A lost report gets the found item's public details. */
+export type ReportMatch = { ai: boolean; checked: number; match: null | { title: string; place: string; date: string | null; score: number; ai: boolean } };
+
+async function reportMatchView(kind: Kind, id: number, r: MatchResult): Promise<ReportMatch> {
+  if (!r.match) return { ai: r.ai, checked: r.checked, match: null };
+  const rows = await all<{ id: number; title: string; place: string; item_date: string | null; lat: string | null; lng: string | null; category: string }>(
+    'SELECT id, title, place, item_date, lat, lng, category FROM items WHERE id IN (?, ?)', [id, r.match.id]);
+  const mine = rows.find(x => x.id === id), other = rows.find(x => x.id === r.match!.id);
+  if (!mine || !other) return { ai: r.ai, checked: r.checked, match: null };
+  const [lost, found] = kind === 'lost' ? [mine, other] : [other, mine];
+  const side = (x: typeof mine) => ({ place: x.place, date: x.item_date, lat: x.lat == null ? null : Number(x.lat), lng: x.lng == null ? null : Number(x.lng), category: x.category });
+  const { score } = scoreMatch(side(lost), side(found), r.match.aiScore);
+  // A finder only learns that a possible owner exists: lost reports are private.
+  return { ai: r.ai, checked: r.checked, match: kind === 'lost'
+    ? { title: other.title, place: other.place, date: other.item_date, score, ai: r.match.aiScore !== null }
+    : { title: '', place: '', date: null, score, ai: r.match.aiScore !== null } };
+}
+
+/** "Have you seen this?": emails members who watch the building (in the app it shows as a notification anyway). */
+async function alertWatchers(orgId: number, ownerId: number, itemId: number, title: string, place: string) {
+  const building = buildingOf(place);
+  const rows = await all<{ user_id: number; alert_areas: string | null }>(
+    `SELECT m.user_id, p.alert_areas FROM organization_members m JOIN user_prefs p ON p.user_id = m.user_id
+     WHERE m.organization_id = ? AND m.status = 'approved' AND m.role = 'member' AND m.user_id <> ? AND p.alert_areas IS NOT NULL`, [orgId, ownerId]);
+  for (const r of rows) {
+    let areas: string[] = [];
+    try { areas = JSON.parse(r.alert_areas ?? '[]'); } catch { /* ignore */ }
+    if (!areas.includes(building)) continue;
+    await emailUser(r.user_id, 'alerts', {
+      subject: ['見かけませんでしたか？', 'Have you seen this?'],
+      ja: [`「${title}」が ${place} でなくなりました。見かけたら、アプリで教えてください。`],
+      en: [`Someone lost a "${title}" at ${place}. If you have seen it, please tell them in the app.`],
+      path: `/browse?view=help#i${itemId}`,
+    });
+  }
 }
 
 /** Tells the owner of a lost report that a found item may be theirs. */
@@ -195,6 +237,32 @@ async function mailMatch(lostId: number) {
     ja: [`届け出た「${r.title}」に似た拾得物が見つかりました。`, 'アプリで確認し、自分の物なら「これは私のものです」を押してください。'],
     en: [`A found item looks like the "${r.title}" you reported.`, 'Check it in the app and press "This is mine" if it is yours.'],
     path: '/my-items',
+  });
+}
+
+/**
+ * Item list → Matches → "Check with AI": Gemini looks for matches for open lost reports that have none yet
+ * (newest first, 10 per click so the free tier is not used up). New matches are linked and the owners told.
+ */
+export async function aiMatchOpenReports(): Promise<Result<{ checked: number; left: number; found: { lost: string; found: string; score: number }[] }>> {
+  return handle(async () => {
+    const { orgId } = await requireStaff();
+    if (!geminiReady()) throw new ActionError('AI is not set up. Ask the administrator to add a Gemini API key.');
+    const open = await all<{ id: number; category: string; place: string; item_date: string | null; lat: string | null; lng: string | null; title: string }>(
+      `SELECT id, category, place, item_date, lat, lng, title FROM items
+       WHERE organization_id = ? AND kind = 'lost' AND status = 1 AND matched_item_id IS NULL ORDER BY id DESC LIMIT 11`, [orgId]);
+    const batch = open.slice(0, 10);
+    const found: { lost: string; found: string; score: number }[] = [];
+    for (const it of batch) {
+      const pin = { lat: it.lat == null ? null : Number(it.lat), lng: it.lng == null ? null : Number(it.lng) };
+      const r = await matchNewItem(orgId, 'lost', it.category, it.place, it.item_date, it.id, pin);
+      if (r.match) {
+        const f = await one<{ title: string }>('SELECT title FROM items WHERE id = ?', [r.match.id]);
+        found.push({ lost: it.title, found: f?.title ?? '', score: r.match.aiScore ?? 0 });
+      }
+    }
+    refresh();
+    return { checked: batch.length, left: Math.max(0, open.length - batch.length), found };
   });
 }
 
@@ -216,7 +284,28 @@ export async function suggestFromPhoto(fd: FormData): Promise<Result<{ guess: Ph
   });
 }
 
-export async function receiveAndRegister(fd: FormData): Promise<Result<{ id: number; itemCode: string; shelf: string }>> {
+/** What staff see after Intake: the possible owner's lost report (staff may see who reported it, and the AI's reason). */
+export type IntakeMatch = { ai: boolean; checked: number; already: boolean;
+  match: null | { lostId: number; title: string; owner: string; place: string; date: string | null; score: number; ai: boolean; reason: string | null } };
+
+async function intakeMatchView(foundId: number, r: MatchResult | null): Promise<IntakeMatch> {
+  // r === null: the member's post was already matched before it reached the office.
+  const it = await one<{ matched_item_id: number | null; place: string; item_date: string | null; lat: string | null; lng: string | null; category: string; ai_score: number | null; ai_reason: string | null }>(
+    'SELECT matched_item_id, place, item_date, lat, lng, category, ai_score, ai_reason FROM items WHERE id = ?', [foundId]);
+  const base = { ai: r?.ai ?? false, checked: r?.checked ?? 0, already: r === null };
+  if (!it?.matched_item_id) return { ...base, match: null };
+  const l = await one<{ id: number; title: string; place: string; item_date: string | null; lat: string | null; lng: string | null; category: string; owner: string }>(
+    `SELECT i.id, i.title, i.place, i.item_date, i.lat, i.lng, i.category, u.name AS owner FROM items i JOIN users u ON u.id = i.reporter_id WHERE i.id = ?`,
+    [it.matched_item_id]);
+  if (!l) return { ...base, match: null };
+  const side = (x: { place: string; item_date: string | null; lat: string | null; lng: string | null; category: string }) =>
+    ({ place: x.place, date: x.item_date, lat: x.lat == null ? null : Number(x.lat), lng: x.lng == null ? null : Number(x.lng), category: x.category });
+  const aiScore = it.ai_score == null ? null : Number(it.ai_score);
+  const { score } = scoreMatch(side(l), side(it), aiScore);
+  return { ...base, match: { lostId: l.id, title: l.title, owner: l.owner, place: l.place, date: l.item_date, score, ai: aiScore !== null, reason: it.ai_reason } };
+}
+
+export async function receiveAndRegister(fd: FormData): Promise<Result<{ id: number; itemCode: string; shelf: string; report: IntakeMatch }>> {
   return handle(async () => {
     const { uid, orgId } = await requireStaff();
     const existingId = Number(fd.get('existing_item_id') ?? 0) || 0;
@@ -256,9 +345,20 @@ export async function receiveAndRegister(fd: FormData): Promise<Result<{ id: num
         [orgId, uid, title, category, place, pin.lat, pin.lng, itemDate, desc || null, photo, shelf, finder || null, uid])).insertId;
     }
     const code = await assignCode(id);
-    if (!alreadyMatched) await matchNewItem(orgId, 'found', category, place, itemDate, id, pin);
+    if (existingId > 0) {
+      // The finder brought their post to the office: points, and a bonus when it came within the time limit.
+      const f = await one<{ reporter_id: number; on_time: number }>(
+        `SELECT i.reporter_id, (COALESCE(i.handed_in_at, NOW()) <= DATE_ADD(i.created_at, INTERVAL ? DAY)) AS on_time FROM items i WHERE i.id = ?`,
+        [(await getOrgSettings(orgId)).keepDays, id]);
+      if (f) {
+        await award(orgId, f.reporter_id, 'handed_in', id);
+        if (Number(f.on_time) === 1) await award(orgId, f.reporter_id, 'on_time', id);
+      }
+    }
+    const found = alreadyMatched ? null : await matchNewItem(orgId, 'found', category, place, itemDate, id, pin);
+    const report = await intakeMatchView(id, found);
     refresh();
-    return { id, itemCode: code, shelf };
+    return { id, itemCode: code, shelf, report };
   });
 }
 
@@ -441,6 +541,9 @@ export async function handoverClaim(id: number, idType: string, pickupCode: stri
       await exec('UPDATE items SET status = 5 WHERE id = ?', [c.found_item_id], conn);
       if (c.lost_item_id) await exec('UPDATE items SET status = 5 WHERE id = ?', [c.lost_item_id], conn);
     });
+    const finder = await one<{ reporter_id: number; claimant_id: number }>(
+      'SELECT i.reporter_id, c.claimant_id FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?', [id]);
+    if (finder && finder.reporter_id !== finder.claimant_id) await award(orgId, finder.reporter_id, 'returned', c.found_item_id);
     refresh();
     return {};
   });
@@ -551,52 +654,35 @@ export async function deletePlace(id: number): Promise<Result> {
 // ---------- thank-you letters ----------
 
 /**
- * The owner thanks the finder after the item was returned. The letter is required; an e-gift is optional and is
- * paid by card through PAY.JP (the browser sends only a card token). If anything fails after the charge, it is refunded.
+ * The owner thanks the finder after the item was returned. The letter is required; thank-you points are optional.
+ * (E-gifts paid by card were replaced by points: no money moves through the app. See docs/SYSTEM.md.)
  */
-export async function sendThanks(claimId: number, input: {
-  message: string; card: string; showName: boolean; gift?: { brand: string; amount: number; token: string } | null;
-}): Promise<Result> {
+export async function sendThanks(claimId: number, input: { message: string; card: string; showName: boolean; points: number; onWall?: boolean }): Promise<Result> {
   return handle(async () => {
-    const { uid } = await requireMember();
+    const { uid, orgId } = await requireMember();
     const message = input.message.trim();
     if (!message) throw new ActionError('Please write a thank-you message.');
     maxLen(message, 1000, 'The message is too long.');
     if (!(CARD_DESIGNS as readonly string[]).includes(input.card)) throw new ActionError('Please choose a card.');
-    const c = await one<{ status: string; claimant_id: number; finder: number; title: string; item_code: string | null }>(
-      `SELECT c.status, c.claimant_id, i.reporter_id AS finder, i.title, i.item_code
+    const pts = Number(input.points) || 0;
+    if (!THANKS_POINTS.includes(pts)) throw new ActionError('Please choose the points.');
+    const c = await one<{ status: string; claimant_id: number; finder: number; title: string; found_item_id: number }>(
+      `SELECT c.status, c.claimant_id, i.reporter_id AS finder, i.title, c.found_item_id
        FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?`, [claimId]);
     if (!c || c.claimant_id !== uid) throw new ActionError('Claim not found.');
     if (c.status !== 'returned') throw new ActionError('You can send thanks after you got the item back.');
     if (c.finder === uid) throw new ActionError('Claim not found.');
     if (await one('SELECT id FROM thanks WHERE claim_id = ?', [claimId])) throw new ActionError('You already sent thanks for this item.');
-
-    let chargeId: string | null = null, code: string | null = null, brand: string | null = null, amount: number | null = null;
-    const gift = input.gift ?? null;
-    if (gift) {
-      if (!GIFT_BRANDS.some(b => b.key === gift.brand) || !GIFT_AMOUNTS.includes(gift.amount)) throw new ActionError('Please choose a gift.');
-      if (!gift.token) throw new ActionError('Please enter your card.');
-      if (!giftProviderReady()) throw new ActionError('Gift cards are not available yet. You can still send the letter.');
-      brand = gift.brand; amount = gift.amount;
-      chargeId = await charge(amount, gift.token, `Thank-you gift ${brand} ¥${amount} for ${c.item_code ?? c.title}`);
-    }
-    try {
-      if (chargeId) code = await issueGiftCode(brand!, amount!);
-      await exec(
-        `INSERT INTO thanks (claim_id, from_user, to_user, message, card, show_name, gift_brand, gift_amount, gift_code, charge_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [claimId, uid, c.finder, message, input.card, input.showName ? 1 : 0, brand, amount, code, chargeId]);
-    } catch (e) {
-      if (chargeId) await refund(chargeId).catch(err => console.error('Refund failed for', chargeId, err));
-      throw e instanceof ActionError ? e : new ActionError('Your thanks could not be saved. Any payment was refunded.');
-    }
-    const brandName = GIFT_BRANDS.find(b => b.key === brand)?.name ?? brand;
+    await transaction(async conn => {
+      await exec('INSERT INTO thanks (claim_id, from_user, to_user, message, card, show_name, points, on_wall) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [claimId, uid, c.finder, message, input.card, input.showName ? 1 : 0, pts, input.onWall ? 1 : 0], conn);
+      await award(orgId, c.finder, 'thanks', c.found_item_id, pts, conn);
+      await award(orgId, uid, 'wrote_thanks', c.found_item_id, undefined, conn);
+    });
     await emailUser(c.finder, 'thanks', {
-      subject: code ? ['お礼の手紙とギフトが届きました', 'You received a thank-you letter and a gift'] : ['お礼の手紙が届きました', 'You received a thank-you letter'],
-      ja: [`あなたが見つけた「${c.title}」の持ち主から、お礼の手紙が届きました。`,
-        ...(code ? [`${brandName} ¥${amount} のe-ギフトも届いています。ギフトコード：${code}`] : []), 'アプリで手紙を読めます。'],
-      en: [`The owner of the "${c.title}" you found sent you a thank-you letter.`,
-        ...(code ? [`They also sent you a ${brandName} ¥${amount} e-gift. Gift code: ${code}`] : []), 'Read the letter in the app:'],
+      subject: ['お礼の手紙が届きました', 'You received a thank-you letter'],
+      ja: [`あなたが見つけた「${c.title}」の持ち主から、お礼の手紙が届きました。`, ...(pts ? [`ありがとうポイント +${pts} も届いています。`] : []), 'アプリで手紙を読めます。'],
+      en: [`The owner of the "${c.title}" you found sent you a thank-you letter.`, ...(pts ? [`They also sent you +${pts} thank-you points.`] : []), 'Read the letter in the app:'],
       path: '/my-items?tab=thanks',
     });
     refresh();
@@ -630,7 +716,7 @@ async function ensureSettingsRow(orgId: number) {
   await exec('INSERT IGNORE INTO org_settings (organization_id) VALUES (?)', [orgId]);
 }
 
-export async function saveGeneralSettings(input: { storageDays: number; policeDays: number; hideSensitive: boolean }): Promise<Result> {
+export async function saveGeneralSettings(input: { storageDays: number; policeDays: number; keepDays: number; hideSensitive: boolean }): Promise<Result> {
   return handle(async () => {
     const { orgId } = await requireAdmin();
     const storage = Number(input.storageDays), police = Number(input.policeDays);
@@ -638,9 +724,12 @@ export async function saveGeneralSettings(input: { storageDays: number; policeDa
     if (!Number.isInteger(police) || police < SETTING_LIMITS.policeDays.min || police > SETTING_LIMITS.policeDays.max)
       throw new ActionError('The police deadline must be between 1 and 14 days.');
     if (police > storage) throw new ActionError('The police deadline cannot be longer than the storage period.');
+    const keep = Number(input.keepDays);
+    if (!Number.isInteger(keep) || keep < SETTING_LIMITS.keepDays.min || keep > SETTING_LIMITS.keepDays.max)
+      throw new ActionError('The finder time limit must be between 1 and 14 days.');
     await ensureSettingsRow(orgId);
-    await exec('UPDATE org_settings SET storage_days = ?, police_days = ?, hide_sensitive = ? WHERE organization_id = ?',
-      [storage, police, input.hideSensitive ? 1 : 0, orgId]);
+    await exec('UPDATE org_settings SET storage_days = ?, police_days = ?, finder_keep_days = ?, hide_sensitive = ? WHERE organization_id = ?',
+      [storage, police, keep, input.hideSensitive ? 1 : 0, orgId]);
     refresh();
     return {};
   });
@@ -681,6 +770,64 @@ export async function saveNotifyPrefs(input: NotifyPrefs): Promise<Result> {
     const clean = {} as NotifyPrefs;
     for (const e of NOTIFY_EVENTS) clean[e.key] = { app: input?.[e.key]?.app !== false, email: input?.[e.key]?.email === true };
     await savePrefs(user.id, { notify: clean });
+    refresh();
+    return {};
+  });
+}
+
+/** The buildings a member watches for "Have you seen this?" alerts. */
+export async function saveAlertAreas(areas: string[]): Promise<Result> {
+  return handle(async () => {
+    const { user } = await requireLogin();
+    const clean = [...new Set((Array.isArray(areas) ? areas : []).map(a => String(a).trim()).filter(a => /^[A-Za-z0-9]{1,10}$/.test(a)))].slice(0, 20);
+    await savePrefs(user.id, { alertAreas: clean });
+    refresh();
+    return {};
+  });
+}
+
+/** "I saw it": a short note to the owner of a lost report. The owner never learns who sent it. */
+export async function reportSighting(itemId: number, rawNote: string): Promise<Result> {
+  return handle(async () => {
+    const { uid, orgId } = await requireMember();
+    const note = String(rawNote ?? '').trim();
+    if (!note) throw new ActionError('Please say where and when you saw it.');
+    maxLen(note, 300, 'The note is too long.');
+    const it = await one<{ organization_id: number; reporter_id: number; kind: Kind; status: number; ask_help: number; title: string }>(
+      'SELECT organization_id, reporter_id, kind, status, ask_help, title FROM items WHERE id = ?', [itemId]);
+    if (!it || it.organization_id !== orgId || it.kind !== 'lost' || !Number(it.ask_help) || it.reporter_id === uid) throw new ActionError('Item not found.');
+    if (it.status > 3) throw new ActionError('The owner already got it back. Thank you!');
+    if (await one('SELECT id FROM sightings WHERE item_id = ? AND user_id = ?', [itemId, uid])) throw new ActionError('You already told the owner. Thank you!');
+    await exec('INSERT INTO sightings (item_id, user_id, note) VALUES (?, ?, ?)', [itemId, uid, note]);
+    await emailUser(it.reporter_id, 'matches', {
+      subject: ['あなたの落とし物を見かけた人がいます', 'Someone may have seen your item'],
+      ja: [`「${it.title}」を見かけた人からのメモ：`, '', note], en: [`A note from someone who may have seen your "${it.title}":`, '', note],
+      path: '/my-items',
+    });
+    refresh();
+    return {};
+  });
+}
+
+/** 👏 on a thank-you wall story (tap again to take it back). */
+export async function clapThanks(thanksId: number): Promise<Result<{ clapped: boolean }>> {
+  return handle(async () => {
+    const { uid, orgId } = await requireMember('Join a community first.');
+    const t = await one<{ organization_id: number }>(
+      `SELECT i.organization_id FROM thanks t JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id
+       WHERE t.id = ? AND t.on_wall = 1`, [thanksId]);
+    if (!t || t.organization_id !== orgId) throw new ActionError('Story not found.');
+    const del = await exec('DELETE FROM wall_claps WHERE thanks_id = ? AND user_id = ?', [thanksId, uid]);
+    if (!del.affectedRows) await exec('INSERT IGNORE INTO wall_claps (thanks_id, user_id) VALUES (?, ?)', [thanksId, uid]);
+    refresh();
+    return { clapped: !del.affectedRows };
+  });
+}
+
+export async function saveShowInRanking(on: boolean): Promise<Result> {
+  return handle(async () => {
+    const { user } = await requireLogin();
+    await savePrefs(user.id, { showInRanking: Boolean(on) });
     refresh();
     return {};
   });

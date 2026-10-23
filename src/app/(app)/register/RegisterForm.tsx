@@ -3,17 +3,18 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition, type FormEvent } from 'react';
-import { receiveAndRegister } from '@/app/actions';
+import { receiveAndRegister, type IntakeMatch } from '@/app/actions';
+import { scoreClass } from '@/lib/match';
+import { Icon } from '@/components/Icon';
 import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
 import type { Place, QueueItem } from '@/lib/types';
 import { checkPhoto, PhotoInput } from '@/components/PhotoInput';
 import { AiPhotoFill } from '@/components/AiPhotoFill';
 import type { PhotoGuess } from '@/lib/gemini';
 import { useT, useToast } from '@/components/Providers';
-import { ErrorText, Field } from '@/components/ui';
+import { ErrorText, Field, placeDate } from '@/components/ui';
 
 // Placeholder label pattern until real QR codes are added.
-const QR_CELLS = Array.from({ length: 121 }, (_, i) => ((i * 7 + (i % 5) * 3 + (i >> 2)) % 3 ? '' : 'w'));
 
 export function RegisterForm({ queued, afterPath, places, categories, shelves, ai = false }:
   { queued: QueueItem | null; afterPath: string; places: Place[]; categories: string[]; shelves: string[]; ai?: boolean }) {
@@ -25,6 +26,7 @@ export function RegisterForm({ queued, afterPath, places, categories, shelves, a
   const [err, setErr] = useState('');
   const [where, setWhere] = useState<PlaceValue>({ place: queued?.place ?? '', lat: null, lng: null });
   const [busy, start] = useTransition();
+  const [done, setDone] = useState<{ id: number; itemCode: string; shelf: string; report: IntakeMatch } | null>(null);
 
   const form = useRef<HTMLFormElement>(null);
   function fillFromAi(g: PhotoGuess, file: File) {
@@ -52,9 +54,11 @@ export function RegisterForm({ queued, afterPath, places, categories, shelves, a
       const r = await receiveAndRegister(fd);
       if (!r.ok) return setErr(r.error);
       toast(t('Item registered · {code} · Shelf {shelf}', { code: r.itemCode, shelf: r.shelf }));
-      router.push(fd.get('print_label') ? `/label/${r.id}?then=${encodeURIComponent(afterPath)}` : afterPath);
+      setDone(r); // show what the matching found, then label / next item
     });
   }
+
+  if (done) return <IntakeResult done={done} queued={!!queued} afterPath={afterPath} onAnother={() => { setDone(null); setWhere({ place: '', lat: null, lng: null }); window.scrollTo(0, 0); }} />;
 
   return (
     <>
@@ -90,21 +94,65 @@ export function RegisterForm({ queued, afterPath, places, categories, shelves, a
           <Field label={t('Description')}><textarea name="description" rows={2} placeholder={t('Color, size, marks')} defaultValue={queued?.description ?? ''} /></Field>
           <Field label={t('Photo')}><PhotoInput /></Field>
           <ErrorText msg={t(err)} />
-          <label className="sw" style={{ borderTop: 0 }}>
-            <span>{t('Print a QR label next')}<div className="meta">{t('Stick it on the item so it can be scanned later.')}</div></span>
-            <input type="checkbox" name="print_label" defaultChecked />
-          </label>
           <p className="meta">{t('The item stays at the office until the owner shows ID.')}</p>
-          <button className="btn" disabled={busy}>{t('Register item')}</button>
+          {busy && <div className="aimatch busy" style={{ marginBottom: 10 }}><Icon name={ai ? 'spark' : 'search'} size={18} />
+            <span>{t(ai ? 'AI is looking for the owner among the lost reports…' : 'Looking for a match…')}</span></div>}
+          <button className="btn" disabled={busy}>{t(busy ? 'Checking…' : 'Register item')}</button>
           {queued && <> <Link className="btn sec" href="/register">{t('Cancel')}</Link></>}
         </form>
         <div className="box">
-          <b>{t('Storage label')}</b>
-          <p className="meta">{t('Attach this to the item.')}</p>
-          <div className="qr">{QR_CELLS.map((c, i) => <i key={i} className={c} />)}</div>
-          <p className="meta">{t('Assigned automatically when you register the item.')}</p>
+          <b>{t('When someone brings an item in')}</b>
+          <p className="meta">{t('The finder does not have to fill anything in: you register it here for them. Their name is optional (for the thank-you).')}</p>
+          <ol className="steplist" style={{ marginTop: 8 }}>
+            <li><div><b>{t('Register it')}</b><div className="meta">{t(ai ? 'Tip: “Fill in from a photo” lets AI fill the form.' : 'Name, category, place and shelf.')}</div></div></li>
+            <li><div><b>{t(ai ? 'AI looks for the owner' : 'We look for the owner')}</b><div className="meta">{t('Open lost reports are checked right away; the owner is notified.')}</div></div></li>
+            <li><div><b>{t('Print the QR label')}</b><div className="meta">{t('Stick it on the item and put it on the shelf.')}</div></div></li>
+          </ol>
         </div>
       </div>
     </>
+  );
+}
+
+/** After Intake: item code + shelf, what the matching found (staff see the owner and the AI's reason), then the label. */
+function IntakeResult({ done, queued, afterPath, onAnother }: {
+  done: { id: number; itemCode: string; shelf: string; report: IntakeMatch }; queued: boolean; afterPath: string; onAnother: () => void;
+}) {
+  const t = useT();
+  const r = done.report, m = r.match;
+  return (
+    <div className="box" style={{ maxWidth: 720 }}>
+      <h2 style={{ marginTop: 0 }}>{t('Registered · {code} · Shelf {shelf}', { code: done.itemCode, shelf: done.shelf })}</h2>
+      <div className={'aimatch result' + (m ? ' hit' : '')}>
+        <Icon name={m ? 'check' : r.ai ? 'spark' : 'search'} size={22} />
+        <div style={{ flex: 1 }}>
+          <b style={{ fontSize: 17 }}>{t(m ? (r.already ? 'This item was already matched to a lost report' : m.ai ? 'AI found a possible owner!' : 'Possible owner found')
+            : 'No lost report matches yet')}</b>
+          <div className="meta">{[
+            r.ai && r.checked > 0 ? t('AI compared it with {n} lost reports.', { n: r.checked }) : '',
+            t(m ? 'The owner has been notified and can claim it. Check their answers on the Front desk.'
+              : 'It is listed in Found items. The owner is told as soon as they report it lost.'),
+          ].filter(Boolean).join(' ')}</div>
+        </div>
+      </div>
+      {m && (
+        <div className="box" style={{ display: 'flex', gap: 16, alignItems: 'center', boxShadow: 'none', flexWrap: 'wrap', marginTop: 12 }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <span className="meta">{t('Lost report')}</span>
+            <div><Link href={`/items/${m.lostId}`}><b>{m.title}</b></Link> · {m.owner}</div>
+            <div className="meta">{placeDate(m.place, m.date, t)}</div>
+            {m.reason && <p className="meta" style={{ margin: '6px 0 0' }}><b>{t('AI')}:</b> {m.reason}</p>}
+            {m.ai && <div className="pillrow"><span className="pill ai"><Icon name="spark" size={13} /> {t('Checked by AI')}</span></div>}
+          </div>
+          <div style={{ textAlign: 'center' }}><div className={'score ' + scoreClass(m.score)}>{m.score}%</div><div className="meta">{t('Match score')}</div></div>
+        </div>
+      )}
+      <div className="btnrow">
+        <Link className="btn" href={`/label/${done.id}?then=${encodeURIComponent(queued ? afterPath : '/register')}`}><Icon name="scan" size={16} />{t('Print label')}</Link>
+        {queued ? <Link className="btn sec" href={afterPath}>{t('Back to the front desk')}</Link>
+          : <button className="btn sec" onClick={onAnother}>{t('Register another item')}</button>}
+        <Link className="btn sec" href={`/items/${done.id}`}>{t('Open the item')}</Link>
+      </div>
+    </div>
   );
 }

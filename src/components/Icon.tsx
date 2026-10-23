@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 const P: Record<string, string> = {
   home: 'M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5M10 20v-5h4v5',
   plus: 'M12 5v14M5 12h14',
+  heart: 'M12 20s-7.5-4.6-9-9.3C2 7.4 4.3 4.5 7.4 4.5c2 0 3.5 1.1 4.6 2.7 1.1-1.6 2.6-2.7 4.6-2.7 3.1 0 5.4 2.9 4.4 6.2-1.5 4.7-9 9.3-9 9.3z',
   spark: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z',
   box: 'M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5zM3.5 7.5 12 12l8.5-4.5M12 12v9',
   search: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.8-4.8',
@@ -65,12 +66,13 @@ const CAT_ICON: Record<string, string> = {
   Clothing: 'clothing', 'Textbook / stationery': 'book', 'Water bottle': 'bottle', Other: 'other',
 };
 const CAT_TINT: Record<string, [bg: string, fg: string]> = {
-  Wallet: ['#fef3c7', '#b45309'], Bag: ['#e0e7ff', '#4338ca'], Electronics: ['#dbeafe', '#1d4ed8'],
-  'ID card': ['#fce7f3', '#be185d'], Keys: ['#dcfce7', '#15803d'], Other: ['#f1f5f9', '#475569'],
-  Smartphone: ['#dbeafe', '#1d4ed8'], 'Laptop / tablet': ['#e0f2fe', '#0369a1'], Earphones: ['#ede9fe', '#6d28d9'],
-  'Charger / cable': ['#fef9c3', '#a16207'], 'USB / storage': ['#ccfbf1', '#0f766e'], 'IC card / pass': ['#ffe4e6', '#be123c'],
-  Umbrella: ['#e0e7ff', '#3730a3'], Clothing: ['#fae8ff', '#a21caf'], 'Textbook / stationery': ['#ffedd5', '#c2410c'],
-  'Water bottle': ['#cffafe', '#0e7490'],
+  // pastel tiles with a darker tone of the same colour for the picture (readable, clay-like)
+  Wallet: ['#FBE6BC', '#8A5F14'], Bag: ['#DCE7F1', '#46668A'], Electronics: ['#DCE7F1', '#46668A'],
+  'ID card': ['#FFE3D7', '#A4533F'], Keys: ['#DCEBE2', '#3F6B52'], Other: ['#F3E6D8', '#806B5B'],
+  Smartphone: ['#DCE7F1', '#46668A'], 'Laptop / tablet': ['#E4ECF4', '#4E6E8E'], Earphones: ['#EADFF0', '#6E5487'],
+  'Charger / cable': ['#FBE6BC', '#8A5F14'], 'USB / storage': ['#DCEBE2', '#3F6B52'], 'IC card / pass': ['#FFE3D7', '#A4533F'],
+  Umbrella: ['#DCE7F1', '#46668A'], Clothing: ['#F8DDE6', '#9A4A66'], 'Textbook / stationery': ['#FFE6D2', '#9A5A2E'],
+  'Water bottle': ['#D9ECEC', '#2F6E6E'],
 };
 
 /** A coloured tile with the category's picture. Used instead of a photo. */

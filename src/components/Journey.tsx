@@ -47,3 +47,13 @@ export function JourneyPanel({ j, t, children }: { j: Journey; t: T; children?: 
     </div>
   );
 }
+
+/** "Bring it to the office by …" for a finder who is keeping a found item (red once the time is up). */
+export function KeepLimit({ due, keepDays, t }: { due: { date: string; overdue: boolean }; keepDays: number; t: T }) {
+  return (
+    <div className={'keeplimit' + (due.overdue ? ' over' : '')}>
+      <b>{t(due.overdue ? 'Time limit passed: please bring it to the office today' : 'Bring it to the office by {date}', { date: due.date })}</b>
+      <span className="meta">{t('You may keep a found item for up to {n} days. After that it goes to the office, even if nobody has claimed it.', { n: keepDays })}</span>
+    </div>
+  );
+}

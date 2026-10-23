@@ -23,7 +23,8 @@ const FAQ: [q: string, a: string][] = [
   ['Why are some details hidden?', 'Found items show only general information. The owner must describe the rest, so nobody can copy the answers.'],
   ['Can I keep something I found?', 'No. Post it here and hand it to the office when someone claims it.'],
   ['How long are items kept?', 'Your organization sets the storage period. Items that are not collected are reported to the police, as the law requires.'],
-  ['Is a thank-you required?', 'No. Thank-you messages and gifts are voluntary.'],
+  ['Is a thank-you required?', 'A short letter is asked for after you get your item back. Thank-you points are optional.'],
+  ['What are thank-you points?', 'Points thank people who help: for bringing found items to the office and for returns. They show your level and the Top helpers ranking. They cannot be bought or exchanged for money or goods.'],
 ];
 
 /** Account, community, privacy and help in one place. */
@@ -74,7 +75,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
 
       {cur === 'privacy' && (
         <div className="cols even">
-          <PrivacySwitches shareEmail={prefs.shareEmail} isMember={user.role === 'member'} />
+          <PrivacySwitches shareEmail={prefs.shareEmail} showInRanking={prefs.showInRanking} isMember={user.role === 'member'} />
           <div className="box">
             <h2 style={{ marginTop: 0 }}>{t('Your data')}</h2>
             <p className="meta">{t('Download a copy of what the system stores about you.')}</p>

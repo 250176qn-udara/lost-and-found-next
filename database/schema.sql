@@ -130,6 +130,8 @@ CREATE TABLE IF NOT EXISTS items (
   INDEX idx_org_kind_status (organization_id, kind, status),
   INDEX idx_reporter (reporter_id),
   CONSTRAINT fk_item_org      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  ask_help        TINYINT(1) NOT NULL DEFAULT 0,        -- lost report: owner asks others to look out for it (name, category, place, date only)
+  keep_reminder   TINYINT UNSIGNED NOT NULL DEFAULT 0, -- finder reminders sent: 1 = day before the limit, 2 = limit passed
   ai_score        TINYINT UNSIGNED NULL,               -- Gemini's 0-100 score for the current match (NULL = rules only)
   ai_reason       VARCHAR(300) NULL,                   -- Gemini's short reason, shown to staff only
   CONSTRAINT fk_item_reporter FOREIGN KEY (reporter_id)     REFERENCES users(id)         ON DELETE CASCADE,
@@ -181,6 +183,8 @@ CREATE TABLE IF NOT EXISTS thanks (
   message      TEXT NOT NULL,
   card         VARCHAR(20) NOT NULL DEFAULT 'classic',
   show_name    TINYINT(1) NOT NULL DEFAULT 0,     -- sign the letter with the owner's name
+  points       SMALLINT UNSIGNED NOT NULL DEFAULT 0,  -- thank-you points the owner added to the letter
+  on_wall      TINYINT(1) NOT NULL DEFAULT 0,         -- the owner allowed an anonymous story on the thank-you wall
   gift_brand   VARCHAR(50) NULL,
   gift_amount  INT UNSIGNED NULL,                 -- yen
   gift_code    VARCHAR(100) NULL,
@@ -218,6 +222,7 @@ CREATE TABLE IF NOT EXISTS org_settings (
   organization_id INT UNSIGNED NOT NULL PRIMARY KEY,
   storage_days    SMALLINT UNSIGNED NOT NULL DEFAULT 90,  -- days an unclaimed found item is kept
   police_days     TINYINT UNSIGNED NOT NULL DEFAULT 7,    -- report to the police within this many days (Lost Property Act: 1 week)
+  finder_keep_days TINYINT UNSIGNED NOT NULL DEFAULT 5,   -- a finder may keep a found item this long, then brings it to the office
   hide_sensitive  TINYINT(1) NOT NULL DEFAULT 0,          -- hide wallets, ID cards, IC cards and phones from Found items
   categories      TEXT NULL,                              -- JSON array
   shelves         TEXT NULL,                              -- JSON array
@@ -240,8 +245,46 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   user_id      INT UNSIGNED NOT NULL PRIMARY KEY,
   notify       TEXT NULL,                              -- JSON: {"claims":{"app":true,"email":true}, ...}
   share_email  TINYINT(1) NOT NULL DEFAULT 1,          -- staff may see my email address on claims and in Messages
+  show_in_ranking TINYINT(1) NOT NULL DEFAULT 1,       -- show me in the "Top helpers" ranking
+  alert_areas  TEXT NULL,                              -- JSON: buildings I watch for "Have you seen this?" alerts, e.g. ["A","B"]
   updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT fk_prefs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Thank-you points: recognition only. They cannot be bought or exchanged for money or goods. One row per person, reason, item.
+CREATE TABLE IF NOT EXISTS points (
+  id              INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  organization_id INT UNSIGNED NOT NULL,
+  user_id         INT UNSIGNED NOT NULL,
+  points          SMALLINT NOT NULL,
+  reason          VARCHAR(20) NOT NULL,                  -- handed_in, on_time, returned, thanks, wrote_thanks
+  item_id         INT UNSIGNED NOT NULL,
+  created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_points_once (user_id, reason, item_id),
+  INDEX idx_points_org (organization_id, user_id),
+  CONSTRAINT fk_points_org  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_points_user FOREIGN KEY (user_id)         REFERENCES users(id)         ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- "Have you seen this?": a member says they may have seen someone's lost item (sent to the owner without names).
+CREATE TABLE IF NOT EXISTS sightings (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  item_id    INT UNSIGNED NOT NULL,                  -- the lost report
+  user_id    INT UNSIGNED NOT NULL,                  -- who saw it (never shown to the owner)
+  note       VARCHAR(300) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_sight_item FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sight_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Claps (👏) on the thank-you wall.
+CREATE TABLE IF NOT EXISTS wall_claps (
+  thanks_id  INT UNSIGNED NOT NULL,
+  user_id    INT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (thanks_id, user_id),
+  CONSTRAINT fk_clap_thanks FOREIGN KEY (thanks_id) REFERENCES thanks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_clap_user   FOREIGN KEY (user_id)   REFERENCES users(id)  ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Upgrading an existing database (created before handed_in_at existed)? Run this once:
@@ -271,3 +314,12 @@ CREATE TABLE IF NOT EXISTS user_prefs (
 -- and (created before Gemini matching): ALTER TABLE items ADD COLUMN ai_score TINYINT UNSIGNED NULL, ADD COLUMN ai_reason VARCHAR(300) NULL;
 -- and (created before the super admin): ALTER TABLE users ADD COLUMN is_super TINYINT(1) NOT NULL DEFAULT 0 AFTER deleted_at;
 --   then run the INSERT IGNORE INTO users ... 'super@example.com' line above.
+-- and (created before the finder time limit): ALTER TABLE items ADD COLUMN keep_reminder TINYINT UNSIGNED NOT NULL DEFAULT 0;
+--   ALTER TABLE org_settings ADD COLUMN finder_keep_days TINYINT UNSIGNED NOT NULL DEFAULT 5 AFTER police_days;
+-- and (created before thank-you points): run the CREATE TABLE points block above, then
+--   ALTER TABLE thanks ADD COLUMN points SMALLINT UNSIGNED NOT NULL DEFAULT 0;
+--   ALTER TABLE user_prefs ADD COLUMN show_in_ranking TINYINT(1) NOT NULL DEFAULT 1;
+-- and (created before alerts and the thank-you wall): run the CREATE TABLE sightings / wall_claps blocks above, then
+--   ALTER TABLE items ADD COLUMN ask_help TINYINT(1) NOT NULL DEFAULT 0;
+--   ALTER TABLE user_prefs ADD COLUMN alert_areas TEXT NULL;
+--   ALTER TABLE thanks ADD COLUMN on_wall TINYINT(1) NOT NULL DEFAULT 0;

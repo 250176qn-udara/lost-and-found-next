@@ -1,7 +1,8 @@
 import 'server-only';
 import { cache } from 'react';
-import type { NotifyEvent } from './constants';
+import { FINDER_KEEP_DAYS, type NotifyEvent } from './constants';
 import { getPrefs, getReadIds } from './prefs';
+import { buildingOf } from './places';
 import { all, one } from './db';
 import { num } from './geo';
 import { claimRow, itemRow } from './items';
@@ -256,9 +257,11 @@ export async function getMemberRows(orgId: number): Promise<MemberRow[]> {
 /** Which kind a notice is, from its id prefix (see the builders below). */
 function noticeEvent(id: string): NotifyEvent {
   if (id.startsWith('om')) return 'messages';
-  if (id.startsWith('rx') || id.startsWith('ty')) return 'thanks';
+  if (id.startsWith('sa')) return 'alerts';
+  if (id.startsWith('sg')) return 'matches';
+  if (id.startsWith('rx') || id.startsWith('ty') || id.startsWith('pt')) return 'thanks';
   if (/^m\d/.test(id)) return 'matches';
-  if (id.startsWith('hd') || id.startsWith('q')) return 'items';
+  if (id.startsWith('hd') || id.startsWith('q') || id.startsWith('ko')) return 'items';
   return 'claims';
 }
 
@@ -300,6 +303,23 @@ export async function getMemberNotices(uid: number, orgId: number): Promise<Noti
     id: `om${chat.id}`, title: chat.claimed ? 'The office asked about your claim' : 'New message from the office',
     text: chat.body.slice(0, 80), at: chat.created_at, href: '/messages',
   });
+  // "Have you seen this?" in the buildings this member watches, and notes from people who saw the member's own lost items.
+  const [{ alertAreas }, help, seen] = await Promise.all([
+    getPrefs(uid),
+    all<{ id: number; title: string; place: string; created_at: string }>(
+      `SELECT id, title, place, created_at FROM items WHERE organization_id = ? AND kind = 'lost' AND ask_help = 1 AND status BETWEEN 1 AND 3
+         AND reporter_id <> ? AND created_at > NOW() - INTERVAL 14 DAY`, [orgId, uid]),
+    all<{ id: number; note: string; title: string; created_at: string }>(
+      `SELECT g.id, g.note, i.title, g.created_at FROM sightings g JOIN items i ON i.id = g.item_id
+       WHERE i.reporter_id = ? AND i.organization_id = ? ORDER BY g.id DESC LIMIT 20`, [uid, orgId]),
+  ]);
+  for (const h of help) if (alertAreas.includes(buildingOf(h.place)))
+    list.push({ id: `sa${h.id}`, title: 'Have you seen this?', text: `${h.title} · ${h.place}`, at: h.created_at, href: `/browse?view=help#i${h.id}` });
+  for (const g of seen) list.push({ id: `sg${g.id}`, title: 'Someone may have seen your item', text: `${g.title}: ${g.note}`, at: g.created_at, href: '/my-items' });
+  const earned = await all<{ id: number; points: number; reason: string; title: string | null; created_at: string }>(
+    `SELECT p.id, p.points, p.reason, i.title, p.created_at FROM points p LEFT JOIN items i ON i.id = p.item_id
+     WHERE p.user_id = ? AND p.organization_id = ? AND p.reason <> 'wrote_thanks' ORDER BY p.id DESC LIMIT 20`, [uid, orgId]);
+  for (const e of earned) list.push({ id: `pt${e.id}`, title: 'You earned thank-you points', text: `+${e.points} · ${e.title ?? ''}`, at: e.created_at, href: '/my-items?tab=points' });
   const reacted = await all<{ id: number; title: string; reaction: string; reacted_at: string }>(
     `SELECT t.id, i.title, t.reaction, t.reacted_at FROM thanks t
      JOIN claims c ON c.id = t.claim_id JOIN items i ON i.id = c.found_item_id
@@ -343,6 +363,13 @@ export async function getStaffNotices(orgId: number): Promise<Notice[]> {
   list.push(...items.map(i => i.handed_in_at
     ? { id: `hd${i.id}`, title: 'A finder handed an item to the office. Please confirm it', text: i.title, at: i.handed_in_at, href: '/desk?tab=finders' }
     : { id: `q${i.id}`, title: 'A member posted a found item', text: i.title, at: i.created_at, href: `/items/${i.id}` }));
+  // Finders who kept an item past the time limit (the finder was already reminded).
+  const late = await all<{ id: number; title: string; name: string; due: string }>(
+    `SELECT i.id, i.title, u.name, DATE_FORMAT(DATE_ADD(i.created_at, INTERVAL COALESCE(s.finder_keep_days, ?) DAY), '%Y-%m-%d %H:%i:%s') AS due
+     FROM items i JOIN users u ON u.id = i.reporter_id LEFT JOIN org_settings s ON s.organization_id = i.organization_id
+     WHERE i.organization_id = ? AND i.kind = 'found' AND i.status < 5 AND i.received_at IS NULL AND i.handed_in_at IS NULL
+       AND NOW() >= DATE_ADD(i.created_at, INTERVAL COALESCE(s.finder_keep_days, ?) DAY)`, [FINDER_KEEP_DAYS, orgId, FINDER_KEEP_DAYS]);
+  for (const l of late) list.push({ id: `ko${l.id}`, title: 'A finder has not handed an item in on time', text: `${l.title} · ${l.name}`, at: l.due, href: `/items/${l.id}` });
   for (const c of claims) {
     list.push(c.status === 'pending'
       ? { id: `cp${c.id}`, title: 'Claim waiting for verification', text: c.title, at: c.created_at, href: '/desk' }
@@ -401,13 +428,15 @@ export type Thanks = {
   id: number; claimId: number; itemId: number; itemTitle: string; message: string; card: string; fromName: string | null; toName: string;
   giftBrand: string | null; giftAmount: number | null; giftCode: string | null; createdAt: string; readAt: string | null;
   reaction: string | null; reactedAt: string | null;
+  /** Thank-you points the owner added. */
+  points: number;
 };
 
 const thanksRow = (r: Record<string, unknown>): Thanks => ({
   id: Number(r.id), claimId: Number(r.claim_id), itemId: Number(r.item_id), itemTitle: String(r.item_title), message: String(r.message), card: String(r.card),
   fromName: Number(r.show_name) ? String(r.from_name) : null, toName: String(r.to_name),
   giftBrand: s(r.gift_brand), giftAmount: r.gift_amount === null ? null : Number(r.gift_amount), giftCode: s(r.gift_code),
-  createdAt: String(r.created_at), readAt: s(r.read_at), reaction: s(r.reaction), reactedAt: s(r.reacted_at),
+  createdAt: String(r.created_at), readAt: s(r.read_at), reaction: s(r.reaction), reactedAt: s(r.reacted_at), points: Number(r.points ?? 0),
 });
 
 /** Letters this member received (as finder) or sent (as owner). The gift code is only returned to the finder. */

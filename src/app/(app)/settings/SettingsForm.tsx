@@ -10,7 +10,7 @@ import { ErrorText, Head } from '@/components/ui';
 
 const TABS = ['General', 'Categories', 'Places & shelves', 'ID types'];
 
-export type SettingsValues = { storageDays: number; policeDays: number; hideSensitive: boolean; categories: string[]; shelves: string[]; idTypes: string[] };
+export type SettingsValues = { storageDays: number; policeDays: number; keepDays: number; hideSensitive: boolean; categories: string[]; shelves: string[]; idTypes: string[] };
 
 export function SettingsForm({ places, settings, initialTab }: { places: Place[]; settings: SettingsValues; initialTab?: string }) {
   const t = useT();
@@ -43,12 +43,13 @@ function General({ settings }: { settings: SettingsValues }) {
   const [storageDays, setStorage] = useState(settings.storageDays);
   const [policeDays, setPolice] = useState(settings.policeDays);
   const [hideSensitive, setHide] = useState(settings.hideSensitive);
+  const [keepDays, setKeep] = useState(settings.keepDays);
   const [err, setErr] = useState('');
   const [busy, start] = useTransition();
-  const changed = storageDays !== settings.storageDays || policeDays !== settings.policeDays || hideSensitive !== settings.hideSensitive;
+  const changed = storageDays !== settings.storageDays || policeDays !== settings.policeDays || keepDays !== settings.keepDays || hideSensitive !== settings.hideSensitive;
   const save = () => start(async () => {
     setErr('');
-    const r = await saveGeneralSettings({ storageDays, policeDays, hideSensitive });
+    const r = await saveGeneralSettings({ storageDays, policeDays, keepDays, hideSensitive });
     if (!r.ok) return setErr(r.error);
     toast('Settings saved');
   });
@@ -66,6 +67,12 @@ function General({ settings }: { settings: SettingsValues }) {
         <span>{t('Police report deadline')}<div className="meta">{t('The Lost Property Act asks for a report within 1 week.')}</div></span>
         <select value={policeDays} onChange={e => setPolice(Number(e.target.value))}>
           {days.map(d => <option key={d} value={d}>{t('{n} days', { n: d })}</option>)}
+        </select>
+      </div>
+      <div className="sw">
+        <span>{t('Finder may keep a found item for')}<div className="meta">{t('Then it must go to the office, even if nobody claimed it. The finder gets a reminder the day before and when the time is up.')}</div></span>
+        <select value={keepDays} onChange={e => setKeep(Number(e.target.value))}>
+          {Array.from({ length: SETTING_LIMITS.keepDays.max }, (_, i) => i + 1).map(d => <option key={d} value={d}>{t('{n} days', { n: d })}</option>)}
         </select>
       </div>
       <label className="sw">

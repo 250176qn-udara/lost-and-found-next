@@ -3,8 +3,6 @@ import { notFound } from 'next/navigation';
 import { requirePage } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
-import { giftProviderReady } from '@/lib/gift-provider';
-import { payjpConfigured } from '@/lib/payjp';
 import { Callout, Head } from '@/components/ui';
 import { ThanksForm } from './ThanksForm';
 
@@ -20,10 +18,10 @@ export default async function ThanksPage({ params }: { params: Promise<{ claimId
 
   return (
     <>
-      <Head title={t('Say thank you')} sub={t('A letter to the person who found your {item}. Gifts are optional.', { item: c.title })} />
+      <Head title={t('Say thank you')} sub={t('A letter to the person who found your {item}. Thank-you points are optional.', { item: c.title })} />
       {c.status !== 'returned' ? <Callout>{t('You can send thanks after you got the item back.')}</Callout>
         : c.thanked ? <Callout kind="teal">{t('You already sent thanks for this item.')} <Link href="/my-items?tab=thanks">{t('See it')}</Link></Callout>
-        : <ThanksForm claimId={c.id} itemTitle={c.title} userName={user.name} userEmail={user.email} giftsOn={payjpConfigured() && giftProviderReady()} />}
+        : <ThanksForm claimId={c.id} itemTitle={c.title} userName={user.name} />}
     </>
   );
 }

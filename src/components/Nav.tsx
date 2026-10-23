@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { NAV } from '@/lib/constants';
 import type { Role } from '@/lib/types';
 import { Icon } from './Icon';
@@ -10,7 +10,15 @@ import { useT } from './Providers';
 export function Nav({ role }: { role: Role }) {
   const t = useT();
   const path = usePathname();
-  const isOn = (href: string) => path === href || path.startsWith(href + '/');
+  const search = useSearchParams();
+  // "/report" and "/report?kind=found" are separate entries: a link with a query is on only when the query matches.
+  const isOn = (href: string) => {
+    const [p, q] = href.split('?');
+    if (!(path === p || path.startsWith(p + '/'))) return false;
+    const want = new URLSearchParams(q ?? '');
+    if ([...want].length) return [...want].every(([k, v]) => search.get(k) === v);
+    return !(p === '/report' && search.get('kind') === 'found');
+  };
   return (
     <nav>
       {NAV[role].map(g => (

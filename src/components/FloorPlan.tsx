@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useT } from './Providers';
+import { floorRank, NO_FLOOR, parsePlace as parse } from '@/lib/places';
 
 // Campus floor plan, drawn from the place names: "Bldg A · Lab 2F" -> building A, floor 2F, room "Lab".
 // Admins add rooms under Settings → Places (name them "Bldg A · Room 2F"). Places without a building go under "Other".
@@ -11,34 +12,6 @@ export type PlaceCount = { n: number; /** shown under the number, e.g. "2 found 
 
 type Room = { name: string; label: string; floor: string };
 type Building = { key: string; floors: { floor: string; rooms: Room[] }[] };
-
-const NO_FLOOR = '';
-
-/** "Lab 2F" / "B1F" / "2階" / "地下1階" -> "2F" / "B1F"; NO_FLOOR when the name has none. */
-function floorOf(s: string): string {
-  let m = s.match(/\b(B?\d{1,2})\s*F\b/i);
-  if (m) return `${m[1].toUpperCase()}F`;
-  m = s.match(/(地下)?(\d{1,2})\s*階/);
-  return m ? `${m[1] ? 'B' : ''}${m[2]}F` : NO_FLOOR;
-}
-
-function parse(name: string, label: string): { building: string; floor: string; label: string } {
-  const b = name.match(/^(?:Bldg\s*([A-Z0-9]+)|([A-Z0-9]+)\s*号館)\s*[·・\-]?\s*(.*)$/i);
-  const floor = floorOf(name);
-  // Room label from the (translated) name: drop the building and the floor.
-  const clean = label
-    .replace(/^(Bldg\s*[A-Z0-9]+|[A-Z0-9]+\s*号館)\s*[·・\-]?\s*/i, '')
-    .replace(/\s*(B?\d{1,2}\s*F|(地下)?\d{1,2}\s*階)\s*$/i, '')
-    .trim();
-  return { building: b ? (b[1] ?? b[2]).toUpperCase() : '', floor, label: clean || label };
-}
-
-/** Floors top to bottom: 5F … 1F, B1F, then rooms without a floor. */
-function floorRank(f: string) {
-  if (f === NO_FLOOR) return -100;
-  const m = f.match(/^(B?)(\d+)F$/);
-  return m ? (m[1] ? -Number(m[2]) : Number(m[2])) : -50;
-}
 
 export function FloorPlan({ places, counts = {}, selected, onPick, linkBase, heat = false }: {
   /** Place names to draw (the organization's places plus any typed ones). */

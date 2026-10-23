@@ -3,7 +3,7 @@
 import { useState, useTransition, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { changePassword, deleteMyAccount, saveShareEmail } from '@/app/actions';
+import { changePassword, deleteMyAccount, saveShareEmail, saveShowInRanking } from '@/app/actions';
 import { useT, useToast } from '@/components/Providers';
 import { ErrorText, Field } from '@/components/ui';
 
@@ -41,10 +41,11 @@ export function PasswordForm() {
 }
 
 /** Saved per user. Finders never see who claimed their item; that is a fixed rule, not a choice. */
-export function PrivacySwitches({ shareEmail, isMember }: { shareEmail: boolean; isMember: boolean }) {
+export function PrivacySwitches({ shareEmail, showInRanking, isMember }: { shareEmail: boolean; showInRanking: boolean; isMember: boolean }) {
   const t = useT();
   const toast = useToast();
   const [share, setShare] = useState(shareEmail);
+  const [rank, setRank] = useState(showInRanking);
   const [busy, start] = useTransition();
   const flip = () => {
     const next = !share;
@@ -54,9 +55,23 @@ export function PrivacySwitches({ shareEmail, isMember }: { shareEmail: boolean;
       if (!r.ok) { setShare(!next); toast(r.error); } else toast('Setting saved');
     });
   };
+  const flipRank = () => {
+    const next = !rank;
+    setRank(next);
+    start(async () => {
+      const r = await saveShowInRanking(next);
+      if (!r.ok) { setRank(!next); toast(r.error); } else toast('Setting saved');
+    });
+  };
   return (
     <div className="box" style={{ marginBottom: 16 }}>
       <h2 style={{ marginTop: 0 }}>{t('Privacy')}</h2>
+      {isMember && (
+        <label className="sw">
+          <span>{t('Show me in "Top helpers"')}<div className="meta">{t('Your name and points appear in the ranking of your community.')}</div></span>
+          <input type="checkbox" checked={rank} disabled={busy} onChange={flipRank} />
+        </label>
+      )}
       {isMember && (
         <label className="sw">
           <span>{t('Show my email to staff')}<div className="meta">{t('Shown on your claims so staff can contact you. Without it, staff use Messages.')}</div></span>

@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
 import { getClaimsOnMyFinds, getNotices, getFinderTasks, getMyClaims, getMyItems, getUnthankedReturns } from '@/lib/data';
-import { finderJourney, ownerJourney } from '@/lib/journey';
+import { finderJourney, keepUntil, ownerJourney } from '@/lib/journey';
+import { getOrgSettings } from '@/lib/settings';
+import { getPoints, getRanking } from '@/lib/points';
+import { PointsCard, Ranking } from '@/components/Points';
 import { GUIDE_URL } from '@/lib/constants';
 import { JourneyBar } from '@/components/Journey';
 import { getT } from '@/lib/i18n-server';
-import { getCommunityStats } from '@/lib/stats';
+import { getCommunityStats, getItemCounts } from '@/lib/stats';
+import { getMatchPairs } from '@/lib/data';
+import { StatCards, SuggestedMatches } from '@/components/Dashboard';
 import type { Item } from '@/lib/types';
 import { CategoryArt, Icon } from '@/components/Icon';
 import { Empty, Illustration } from '@/components/Illustration';
@@ -16,13 +21,15 @@ const hasMatch = (i: Item) => i.status === 3 && i.kind === 'lost' && !!i.matched
 export default async function HomePage() {
   const { user } = await requirePage({ membership: true });
   const orgId = user.organizationId!;
-  const [t, mine, claims, community, notices, finderTasks, unthanked] = await Promise.all([
+  const [t, mine, claims, community, notices, finderTasks, unthanked, { keepDays }, points, ranking] = await Promise.all([
     getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getCommunityStats(orgId, user.id), getNotices(user.id, user.role, orgId),
-    getFinderTasks(user.id, orgId), getUnthankedReturns(user.id),
+    getFinderTasks(user.id, orgId), getUnthankedReturns(user.id), getOrgSettings(orgId), getPoints(user.id, orgId), getRanking(orgId, 3),
   ]);
-  const onFinds = await getClaimsOnMyFinds(user.id, orgId);
+  const [onFinds, counts, pairs] = await Promise.all([getClaimsOnMyFinds(user.id, orgId), getItemCounts(orgId), getMatchPairs(orgId, user.id)]);
+  const openPairs = pairs.filter(p => p.lostStatus < 4 && p.claimStatus !== 'pending' && p.claimStatus !== 'approved');
   const journeyOf = (i: Item) => {
-    if (i.kind === 'found') return finderJourney({ claim: onFinds.get(i.id) ?? null, handedIn: !!i.handedInAt, atOffice: !!i.receivedAt, returned: i.status === 5, thanked: false });
+    if (i.kind === 'found') return finderJourney({ claim: onFinds.get(i.id) ?? null, handedIn: !!i.handedInAt, atOffice: !!i.receivedAt, returned: i.status === 5, thanked: false,
+      due: !i.receivedAt && !i.handedInAt && i.status < 5 ? keepUntil(i.createdAt, keepDays) : null });
     const oc = i.matchedItemId ? claims.find(c => c.foundItemId === i.matchedItemId) ?? null : null;
     return ownerJourney({ matched: !!i.matchedItemId, claim: oc?.status ?? null, claimId: oc?.id, atOffice: !!oc?.shelf,
       thanked: !!oc && oc.status === 'returned' && !unthanked.some(u => u.claim_id === oc.id) });
@@ -42,13 +49,23 @@ export default async function HomePage() {
 
   return (
     <>
-      <div className="hero" style={{ display: 'flex', alignItems: 'center', gap: 20, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-        <div>
-          <h1>{t('Hello, {name}', { name: user.name.split(' ')[0] })}</h1>
-          <p>{open.length === 1 ? t('1 item in progress.') : t('{n} items in progress.', { n: open.length })}</p>
+      <div className="hero dash-hero">
+        <span className="deco" style={{ left: '46%', top: 18 }} aria-hidden="true">✦</span>
+        <span className="deco d2" style={{ left: '58%', bottom: 22 }} aria-hidden="true">♥</span>
+        <span className="deco d3" style={{ right: 230, top: 30 }} aria-hidden="true">★</span>
+        <div className="dash-hero-text">
+          <span className="hero-kicker">{t('Dashboard')}</span>
+          <h1>{t('Welcome back, {name}!', { name: user.name.split(' ')[0] })}</h1>
+          <p>{t('Lost something, or found something? Report it here. We match found items with lost reports, and the office makes sure every item gets back to its owner safely.')}</p>
+          <div className="btnrow" style={{ marginTop: 0 }}>
+            <Link className="btn" href="/report"><Icon name="search" size={16} />{t('Report lost item')}</Link>
+            <Link className="btn sec" href="/report?kind=found"><Icon name="hand" size={16} />{t('Report found item')}</Link>
+          </div>
+          {open.length > 0 && <p className="meta" style={{ margin: '12px 0 0' }}>{open.length === 1 ? t('1 item in progress.') : t('{n} items in progress.', { n: open.length })}</p>}
         </div>
-        <div style={{ background: 'rgba(255,255,255,.12)', borderRadius: 16, padding: 6 }}><Illustration name="done" size={110} /></div>
+        <Illustration name="finder" size={190} className="hero-art" />
       </div>
+      <StatCards c={counts} t={t} />
 
       {mine.length === 0 && claims.length === 0 && (
         <a href={GUIDE_URL} className="guidecard" style={{ marginBottom: 20 }}>
@@ -57,11 +74,12 @@ export default async function HomePage() {
           <span className="btn">{t('Start')} →</span>
         </a>
       )}
-      <div className="quick">
-        <Link href="/report"><span className="icon-chip red"><Icon name="search" /></span><span><b>{t('I lost something')}</b><span className="meta">{t('Report it and get matches')}</span></span></Link>
-        <Link href="/report?kind=found"><span className="icon-chip green"><Icon name="hand" /></span><span><b>{t('I found something')}</b><span className="meta">{t('Post it so the owner can claim it')}</span></span></Link>
-        <Link href="/browse"><span className="icon-chip"><Icon name="grid" /></span><span><b>{t('Browse found items')}</b><span className="meta">{t('Look for your item')}</span></span></Link>
-      </div>
+      {openPairs.length > 0 && (
+        <>
+          <h2>✨ {t('Suggested matches for you')}</h2>
+          <SuggestedMatches pairs={openPairs.slice(0, 3)} t={t} reviewHref="/my-items" />
+        </>
+      )}
 
       {actions.length > 0 && (
         <>
@@ -111,6 +129,10 @@ export default async function HomePage() {
           ) : <div className="box meta">{t('No activity yet.')}</div>}
         </div>
         <div>
+          <h2>{t('Your points')}</h2>
+          <PointsCard p={points} t={t} compact />
+          <h2>{t('Top helpers')}</h2>
+          <Ranking rows={ranking} meId={user.id} t={t} />
           <h2>{t('Community')}</h2>
           <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <Stat n={community.month} label={t('Returned this month')} />

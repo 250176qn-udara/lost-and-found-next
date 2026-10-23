@@ -33,8 +33,20 @@ export function ownerJourney(o: {
 }
 
 /** The finder's side: a found item they posted. */
+/** When a finder must have brought a found item to the office: posted + keepDays. */
+export function keepUntil(createdAt: string | null | undefined, keepDays: number): { date: string; overdue: boolean } | null {
+  if (!createdAt) return null;
+  const d = new Date(createdAt.replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + keepDays);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return { date: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`, overdue: Date.now() >= d.getTime() };
+}
+
 export function finderJourney(f: {
   claim: ClaimStatus | null; handedIn: boolean; atOffice: boolean; returned: boolean; thanked: boolean;
+  /** The time limit for keeping it (see keepUntil). */
+  due?: { date: string; overdue: boolean } | null;
 }): Journey {
   const claimed = f.claim === 'pending' || f.claim === 'approved' || f.claim === 'returned' || f.returned;
   const approved = f.claim === 'approved' || f.claim === 'returned' || f.returned;
@@ -48,6 +60,8 @@ export function finderJourney(f: {
   else if (f.atOffice && f.claim === 'pending') next = { who: 'staff', text: 'Staff are checking the owner’s answers.' };
   else if (f.atOffice && f.claim === 'approved') next = { who: 'owner', text: 'Waiting for the owner to pick it up at the office.' };
   else if (f.atOffice) next = { who: 'owner', text: 'It is safe at the office. Waiting for the owner.' };
+  else if (f.due?.overdue) next = { who: 'you', text: 'The time limit has passed. Please bring it to the office today, even if nobody claimed it.' };
+  else if (f.due) next = { who: 'you', text: 'Keep it safe and bring it to the office before the time limit, even if nobody claims it.' };
   else next = { who: 'owner', text: 'Waiting for the owner. Keep it safe, or hand it to the office any time.' };
   return { done, next };
 }

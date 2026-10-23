@@ -61,6 +61,8 @@ export function claimRow(r: Record<string, unknown>): Claim {
 }
 
 export type FoundMatch = { id: number; aiScore: number | null; aiReason: string | null };
+/** What a match search did: the match (or null), how many items Gemini compared, and whether Gemini was used. */
+export type MatchResult = { match: FoundMatch | null; checked: number; ai: boolean };
 /** Gemini must be at least this sure before it suggests an item the rules did not find. */
 const AI_MIN = 70;
 
@@ -70,9 +72,10 @@ const AI_MIN = 70;
  * the rule-based result below is used.
  */
 export async function findMatch(orgId: number, kind: Kind, category: string, place: string, date: string | null, id: number,
-  pin: { lat: number | null; lng: number | null } = { lat: null, lng: null }): Promise<FoundMatch | null> {
+  pin: { lat: number | null; lng: number | null } = { lat: null, lng: null }): Promise<MatchResult> {
   const ruleId = await findMatchFor(orgId, kind, category, place, date, id, pin);
-  if (!geminiReady()) return ruleId === null ? null : { id: ruleId, aiScore: null, aiReason: null };
+  const rulesOnly: MatchResult = { match: ruleId === null ? null : { id: ruleId, aiScore: null, aiReason: null }, checked: 0, ai: false };
+  if (!geminiReady()) return rulesOnly;
   try {
     const wantKind = kind === 'lost' ? 'found' : 'lost';
     const wantStatus = kind === 'lost' ? [2, 3] : [1];
@@ -85,21 +88,22 @@ export async function findMatch(orgId: number, kind: Kind, category: string, pla
              AND created_at > NOW() - INTERVAL 120 DAY
        ORDER BY (id = ?) DESC, (category = ?) DESC, id DESC LIMIT 8`,
       [orgId, wantKind, id, ...wantStatus, category, place, ruleId ?? 0, category]);
-    if (!me || !rows.length) return null;
+    if (!me || !rows.length) return { match: null, checked: 0, ai: true };
     const side = (r: Record<string, unknown>): MatchSide => ({
       id: Number(r.id), title: String(r.title), category: String(r.category), place: String(r.place),
       date: (r.item_date as string) ?? null, description: (r.description as string) ?? null, photo: (r.photo as string) ?? null,
     });
     const ranked = await rankMatchesWithGemini({ ...side(me), kind }, rows.map(side));
+    const checked = rows.length;
     const best = ranked[0];
-    if (best && best.score >= AI_MIN) return { id: best.id, aiScore: best.score, aiReason: best.reason };
+    if (best && best.score >= AI_MIN) return { match: { id: best.id, aiScore: best.score, aiReason: best.reason }, checked, ai: true };
     // Gemini found nothing convincing: keep the rules' pick only if Gemini does not think it is a different item.
     const rule = ranked.find(r => r.id === ruleId);
-    if (ruleId !== null && (!rule || rule.score >= 50)) return { id: ruleId, aiScore: rule?.score ?? null, aiReason: rule?.reason ?? null };
-    return null;
+    if (ruleId !== null && (!rule || rule.score >= 50)) return { match: { id: ruleId, aiScore: rule?.score ?? null, aiReason: rule?.reason ?? null }, checked, ai: true };
+    return { match: null, checked, ai: true };
   } catch (e) {
     console.error('[gemini] matching failed, using the rules', e);
-    return ruleId === null ? null : { id: ruleId, aiScore: null, aiReason: null };
+    return rulesOnly;
   }
 }
 

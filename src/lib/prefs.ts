@@ -4,7 +4,7 @@ import { all, exec, one } from './db';
 import { defaultNotifyPrefs, NOTIFY_EVENTS, type NotifyEvent, type NotifyPrefs } from './constants';
 import { APP_URL, sendMail } from './mail';
 
-export type UserPrefs = { notify: NotifyPrefs; shareEmail: boolean };
+export type UserPrefs = { notify: NotifyPrefs; shareEmail: boolean; showInRanking: boolean; alertAreas: string[] };
 
 function parseNotify(raw: string | null, staff: boolean): NotifyPrefs {
   const p = defaultNotifyPrefs(staff);
@@ -19,22 +19,31 @@ function parseNotify(raw: string | null, staff: boolean): NotifyPrefs {
   return p;
 }
 
+/** Buildings a member watches for "Have you seen this?" alerts. */
+function parseAreas(raw: string | null): string[] {
+  if (!raw) return [];
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? v.map(String).slice(0, 20) : []; } catch { return []; }
+}
+
 const isStaffRole = (role: string | null | undefined) => role === 'staff' || role === 'admin';
 
 /** Cached per request. */
 export const getPrefs = cache(async (uid: number): Promise<UserPrefs> => {
-  const r = await one<{ notify: string | null; share_email: number | null; role: string | null }>(
-    `SELECT p.notify, p.share_email, m.role FROM users u
+  const r = await one<{ notify: string | null; share_email: number | null; show_in_ranking: number | null; alert_areas: string | null; role: string | null }>(
+    `SELECT p.notify, p.share_email, p.show_in_ranking, p.alert_areas, m.role FROM users u
      LEFT JOIN user_prefs p ON p.user_id = u.id
      LEFT JOIN organization_members m ON m.user_id = u.id AND m.status = 'approved'
      WHERE u.id = ? LIMIT 1`, [uid]);
-  return { notify: parseNotify(r?.notify ?? null, isStaffRole(r?.role)), shareEmail: r?.share_email == null ? true : Boolean(Number(r.share_email)) };
+  return { notify: parseNotify(r?.notify ?? null, isStaffRole(r?.role)), shareEmail: r?.share_email == null ? true : Boolean(Number(r.share_email)),
+    showInRanking: r?.show_in_ranking == null ? true : Boolean(Number(r.show_in_ranking)), alertAreas: parseAreas(r?.alert_areas ?? null) };
 });
 
-export async function savePrefs(uid: number, prefs: Partial<{ notify: NotifyPrefs; shareEmail: boolean }>) {
+export async function savePrefs(uid: number, prefs: Partial<{ notify: NotifyPrefs; shareEmail: boolean; showInRanking: boolean; alertAreas: string[] }>) {
   await exec('INSERT IGNORE INTO user_prefs (user_id) VALUES (?)', [uid]);
   if (prefs.notify) await exec('UPDATE user_prefs SET notify = ? WHERE user_id = ?', [JSON.stringify(prefs.notify), uid]);
   if (prefs.shareEmail !== undefined) await exec('UPDATE user_prefs SET share_email = ? WHERE user_id = ?', [prefs.shareEmail ? 1 : 0, uid]);
+  if (prefs.alertAreas !== undefined) await exec('UPDATE user_prefs SET alert_areas = ? WHERE user_id = ?', [JSON.stringify(prefs.alertAreas), uid]);
+  if (prefs.showInRanking !== undefined) await exec('UPDATE user_prefs SET show_in_ranking = ? WHERE user_id = ?', [prefs.showInRanking ? 1 : 0, uid]);
 }
 
 /** Notice ids this user has read. */

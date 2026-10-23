@@ -61,7 +61,11 @@ export const Bars = ({ data }: { data: [label: string, n: number][] }) => {
   return (
     <div className="box" style={{ paddingBottom: 36 }}>
       <div className="bars">
-        {data.map(([l, n]) => <div key={l} style={{ height: Math.max(6, (n / max) * 140) }}><span>{l} · {n}</span></div>)}
+        {data.map(([l, n], i) => (
+          <div key={l} title={`${l}: ${n}`} style={{ height: Math.max(6, (n / max) * 140), animationDelay: `${i * 0.07}s` }}>
+            <em style={{ animationDelay: `${0.5 + i * 0.07}s` }}>{n}</em><span>{l}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

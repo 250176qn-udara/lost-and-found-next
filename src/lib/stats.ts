@@ -217,3 +217,13 @@ export async function getPlatformStats(): Promise<OrgStats[]> {
     rate: pct(num(r.returned), num(r.received)), admins: r.admins ? String(r.admins) : null,
   }));
 }
+
+/** Dashboard cards: lost reports, found items, returned to owners, found items nobody has claimed yet. */
+export async function getItemCounts(orgId: number) {
+  const r = await one<Record<string, unknown>>(
+    `SELECT SUM(kind = 'lost') AS lost, SUM(kind = 'found') AS found,
+            SUM(kind = 'found' AND status = 5) AS returned, SUM(kind = 'found' AND status = 2) AS unclaimed
+     FROM items WHERE organization_id = ?`, [orgId]);
+  return { lost: num(r?.lost), found: num(r?.found), returned: num(r?.returned), unclaimed: num(r?.unclaimed) };
+}
+

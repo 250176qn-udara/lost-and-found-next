@@ -6,6 +6,8 @@ import { getT } from '@/lib/i18n-server';
 import { scoreClass, scoreMatch } from '@/lib/match';
 import { MapView } from '@/components/MapView';
 import { FloorPlan, type PlaceCount } from '@/components/FloorPlan';
+import { AiMatchPanel } from '@/components/AiMatchPanel';
+import { geminiReady } from '@/lib/gemini';
 import { CsvButton, PrintButton } from '@/components/ClientBits';
 import { CategoryArt, Icon } from '@/components/Icon';
 import { Empty } from '@/components/Illustration';
@@ -112,6 +114,7 @@ async function Matches({ orgId, pairs, t }: { orgId: number; pairs: Awaited<Retu
   const candidates = await getLinkCandidates(orgId);
   return (
     <>
+      <AiMatchPanel ready={geminiReady()} open={candidates.lost.length} />
       <div className="toolbar">
         <span className="meta">{t('Check what the system suggested, remove wrong matches, or link items by hand.')}</span>
         <span className="grow" /><LinkManuallyButton lost={candidates.lost} found={candidates.found} />

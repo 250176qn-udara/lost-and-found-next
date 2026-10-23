@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { Inter, Noto_Sans_JP } from 'next/font/google';
+import { M_PLUS_Rounded_1c, Nunito } from 'next/font/google';
 import { getMe } from '@/lib/auth';
 import { getLang } from '@/lib/i18n-server';
 import { makeT } from '@/lib/i18n';
@@ -8,8 +8,9 @@ import { Providers } from '@/components/Providers';
 import { LangButton } from '@/components/HeaderControls';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const jp = Noto_Sans_JP({ weight: ['400', '500', '600', '700'], subsets: ['latin'], variable: '--font-jp', preload: false });
+// Friendly rounded faces: Nunito for Latin text, M PLUS Rounded 1c for Japanese.
+const ui = Nunito({ subsets: ['latin'], weight: ['400', '600', '700', '800'], variable: '--font-ui' });
+const jp = M_PLUS_Rounded_1c({ weight: ['400', '500', '700', '800'], subsets: ['latin'], variable: '--font-jp', preload: false });
 
 export const metadata: Metadata = { title: 'Lost & Found' };
 
@@ -21,7 +22,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const me = await getMe().catch(() => null);
 
   return (
-    <html lang={lang} className={`${inter.variable} ${jp.variable}`}>
+    <html lang={lang} className={`${ui.variable} ${jp.variable}`}>
       <body>
         <Providers lang={lang}>
           {!me && (

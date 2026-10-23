@@ -41,7 +41,7 @@ name without a password. Development only; never set it on a real server.
 | `GEMINI_MODEL` | Optional | Pins a model. Default `gemini-flash-latest` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Optional | Real email sending. Without them, emails are saved as `.eml` files in `mail-outbox/` |
 | `APP_URL` | Optional | Base URL used in email links (default `http://localhost:3000`) |
-| `NEXT_PUBLIC_PAYJP_PUBLIC_KEY`, `PAYJP_SECRET_KEY` | Optional | Card payment for e-gifts. Use test keys (`pk_test_…`, `sk_test_…`) |
+| `CRON_SECRET` | Optional | Key for `/api/cron/reminders` (finder reminders on a schedule) |
 
 Restart the app after changing `.env.local`. Never commit `.env.local`.
 
@@ -80,7 +80,7 @@ Owner reports "I lost something"          Finder posts "I found something"
                               │
      Owner comes with photo ID + pickup code → staff check both → item returned
                               │
-         Owner writes a thank-you letter (required), optional e-gift → finder can react
+         Owner writes a thank-you letter (required), optional points → finder can react
 ```
 
 Item status: 1 Reported · 2 Registered · 3 Matched · 4 Verified · 5 Returned · 6 Closed (left without its owner).
@@ -110,6 +110,17 @@ Claim status: pending · approved · rejected · returned.
   across places and categories. Owners see the score and "Checked by AI"; only staff see the AI's reason, because it
   may mention private details. Staff can remove wrong matches or link items by hand (Item list → Matches).
 
+### Finder time limit and reminders
+- A finder who posts a found item in the app may keep it for **5 days** (Settings → "Finder may keep a found item
+  for", 1–14 days). Then it must go to the office, **even if nobody has claimed it**.
+- The finder sees the limit on the report form, the result screen, My items and the item page
+  ("Bring it to the office by …", red once it has passed). "Hand over to the office" is always available.
+- **Automatic reminders** (chat message from the office + email): the day before the limit, and when it has passed.
+  Each is sent once (`items.keep_reminder`). Staff get a notification "A finder has not handed an item in on time".
+- They run after pages load (at most every 10 minutes). For a fixed schedule, set `CRON_SECRET` and call
+  `/api/cron/reminders?key=<CRON_SECRET>` every hour (Windows Task Scheduler or cron).
+- Items registered at Intake are already at the office, so no limit applies.
+
 ### Claims, pickup and handover (Front desk)
 - Staff see the owner's answers next to the private details and can ask questions; the conversation is in Messages
   and on the claim card.
@@ -132,9 +143,43 @@ Claim status: pending · approved · rejected · returned.
   Staff can turn on emails for new claims, member messages and found items to check.
 - Each user chooses per kind: in-app and/or email (Notifications → Notification settings).
 
-### Thank-you letters and e-gifts
-- After a return, the owner writes a letter to the finder (required) and may add an e-gift (optional), paid by card
-  through PAY.JP. Owner to finder directly; the office is not involved. The finder can react with an emoji.
+### Thank-you letters and points
+- After a return, the owner writes a letter to the finder (required) and may add **thank-you points** (0 / 10 / 30 / 50).
+  The finder can react with an emoji.
+- **Points** (recognition only: free, never bought, never exchanged for money or goods, so they are not a prepaid
+  payment instrument under 資金決済法):
+
+  | When | Who | Points |
+  |---|---|---|
+  | Staff confirm a found item reached the office | Finder | +20 |
+  | ...within the time limit (5 days) | Finder | +10 |
+  | The owner got it back | Finder | +30 |
+  | Thank-you points in the letter | Finder | 0–50 |
+  | Wrote the thank-you letter | Owner | +5 |
+
+  Points are given only when staff confirm a step, once per person, reason and item; staff do not earn points.
+- Levels: Newcomer (0) · Helper (30) · Silver helper (100) · Gold helper (250) · Campus hero (500).
+- **My items → Points** shows the total, level, history and the **Top helpers** ranking; Home shows a summary.
+  Members can leave the ranking (Account → Privacy).
+- The paid e-gift (PAY.JP) was replaced by points on our teacher's advice: real money needs a merchant contract, a
+  gift-card supplier and legal pages. The old code (`src/lib/payjp.ts`, `src/lib/gift-provider.ts`) is no longer used.
+
+### "Have you seen this?" alerts
+- When reporting something lost, the owner can **ask others to look out for it** (on by default). Only the item name,
+  category, place, date and photo are shared, never the owner's name or private details.
+- Members choose buildings to watch (Found items → **Seen these?**). They get a notification (email only if they turn it
+  on) when something is lost there in the last 14 days.
+- **I saw it:** a short note to the owner (where/when). The owner never sees who sent it. **I found it** opens the
+  found-item report.
+
+### Thank-you wall, badges, Helper of the month
+- **Thank-you wall** (menu): anonymous stories of returns ("A wallet went back to its owner in Bldg B, thanks to a
+  🥉 Helper"), only when the owner agreed in the letter (on by default). Members clap 👏. Shows how many items went
+  back this month.
+- **Badges** (My items → Points): First find, First return, Five returns, Always on time, Lifesaver (wallet, ID card,
+  IC card or phone), Sharp eyes (sent an "I saw it" note), Grateful heart (wrote a letter), Helper of the month.
+- **Helper of the month:** most points last month (members who opted out of the ranking are skipped). Shown on the
+  wall, with a printable **certificate (感謝状)** at `/certificate/YYYY-MM` the school can hand over.
 
 ### Storage and the law
 - Shelves, storage period and police deadline per item (Storage → Deadlines).
@@ -174,7 +219,10 @@ Defined in `database/schema.sql` (tables, demo data, and upgrade notes at the bo
 | `places` | Each organization's rooms and places (optional map pin) |
 | `items` | Lost reports and found items (photo, private details, shelf, match, AI score/reason, disposal) |
 | `claims` | "This is mine" requests, decision, pickup code, handover |
-| `thanks` | Thank-you letters, e-gift, reaction |
+| `thanks` | Thank-you letters, thank-you points, reaction |
+| `points` | Points ledger (one row per person, reason and item) |
+| `sightings` | "I saw it" notes to owners of lost items |
+| `wall_claps` | 👏 on thank-you wall stories |
 | `office_messages` | Member ↔ office chat (optionally tied to an item) |
 | `org_settings` | Saved Settings per organization |
 | `notice_reads`, `user_prefs` | Read notifications; notification and privacy choices per user |
@@ -190,6 +238,15 @@ The changes from October 2026:
 ALTER TABLE users ADD COLUMN deleted_at DATETIME NULL AFTER password_hash;
 ALTER TABLE items ADD COLUMN ai_score TINYINT UNSIGNED NULL, ADD COLUMN ai_reason VARCHAR(300) NULL;
 ALTER TABLE users ADD COLUMN is_super TINYINT(1) NOT NULL DEFAULT 0 AFTER deleted_at;
+ALTER TABLE items ADD COLUMN keep_reminder TINYINT UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE org_settings ADD COLUMN finder_keep_days TINYINT UNSIGNED NOT NULL DEFAULT 5 AFTER police_days;
+-- thank-you points: run the CREATE TABLE points block from schema.sql, then
+ALTER TABLE thanks ADD COLUMN points SMALLINT UNSIGNED NOT NULL DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN show_in_ranking TINYINT(1) NOT NULL DEFAULT 1;
+-- alerts and the thank-you wall: run the CREATE TABLE sightings / wall_claps blocks from schema.sql, then
+ALTER TABLE items ADD COLUMN ask_help TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN alert_areas TEXT NULL;
+ALTER TABLE thanks ADD COLUMN on_wall TINYINT(1) NOT NULL DEFAULT 0;
 -- then add the super admin account: the INSERT ... 'super@example.com' line in schema.sql
 ```
 
@@ -221,9 +278,7 @@ After pulling new code, also run `npm install` (new packages: `qrcode-generator`
 |---|---|---|
 | Gemini | Photo → form, AI matching | Rule-based matching, manual forms |
 | SMTP (e.g. Gmail app password) | Email notifications | Emails saved in `mail-outbox/` |
-| PAY.JP | Card payment for e-gifts | Letters still work; e-gift shows "not available yet" |
 | OpenStreetMap | Street map tiles | — (no key needed) |
-| Gift-card provider | Real gift codes | Test mode issues `TEST-…` codes; live mode refuses (`src/lib/gift-provider.ts`) |
 
 ---
 
@@ -257,7 +312,7 @@ docs/                          demo, 卒業制作要旨, this document
 - Passwords hashed with bcrypt; login cookie encrypted (`iron-session`), 30-minute idle timeout (`src/proxy.ts`).
 - Next.js checks the origin of every Server Action; every action re-checks the user's role and organization.
 - Private details and the AI's reasons are only sent to staff and the finder.
-- Card numbers never reach the server (PAY.JP tokenises in the browser, with 3-D Secure); failed saves are refunded.
+- No money moves through the app: thank-you points cannot be bought or exchanged.
 - Photos are served only to members of the same organization.
 
 ---
@@ -275,7 +330,6 @@ the floor plan, the street map, and the super admin (adding organizations, new a
 
 - **Real Gemini check:** the AI features were tested against a fake server; check one photo and one match with a real key.
 - **Real email:** set SMTP to send instead of saving to `mail-outbox/`.
-- **Live e-gifts:** needs a gift-card provider contract, PAY.JP live review and a 特定商取引法に基づく表記 page.
 - **Floors for some places:** add the floor to places shown under "Floor not set".
 - **Shared database for the team:** each PC has its own database now.
 - **Next.js update:** `npm audit` reports advisories for the installed Next.js 16.0.x; update within version 16.
