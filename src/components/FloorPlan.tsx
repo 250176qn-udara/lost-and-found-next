@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useT } from './Providers';
 import { floorRank, NO_FLOOR, parsePlace as parse } from '@/lib/places';
+import { PLACE_UNKNOWN } from '@/lib/constants';
 
 // Campus floor plan, drawn from the place names: "Bldg A · Lab 2F" -> building A, floor 2F, room "Lab".
 // Admins add rooms under Settings → Places (name them "Bldg A · Room 2F"). Places without a building go under "Other".
@@ -29,6 +30,7 @@ export function FloorPlan({ places, counts = {}, selected, onPick, linkBase, hea
   const buildings = useMemo<Building[]>(() => {
     const by = new Map<string, Map<string, Room[]>>();
     for (const name of [...new Set(places)]) {
+      if (name === PLACE_UNKNOWN) continue; // "Not sure" is not a room
       const p = parse(name, t(name));
       const key = p.building || 'Other';
       if (!by.has(key)) by.set(key, new Map());

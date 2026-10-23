@@ -24,7 +24,7 @@ export type NavGroup = { group: string; links: [href: string, label: string, ico
 /** Sidebar menus. Each entry is a hub page; its sections are tabs or expandable cards inside the page. */
 export const NAV: Record<Role, NavGroup[]> = {
   member: [
-    { group: 'Menu', links: [['/home', 'Dashboard', 'home'], ['/report', 'Report lost item', 'search'], ['/report?kind=found', 'Report found item', 'hand'],
+    { group: 'Menu', links: [['/home', 'Dashboard', 'home'], ['/report', 'Report an item', 'plus'],
       ['/browse', 'Found items', 'grid'], ['/my-items', 'My items', 'box'], ['/messages', 'Messages', 'chat'], ['/notifications', 'Notifications', 'bell'], ['/wall', 'Thank-you wall', 'heart']] },
     { group: 'Account', links: [['/profile', 'Account', 'user'], [GUIDE_URL, 'How it works', 'other']] },
   ],
@@ -120,4 +120,8 @@ export const BADGES = [
   { key: 'helper_month', icon: '🏅', name: 'Helper of the month', desc: 'Earned the most points in a month' },
 ] as const;
 export type BadgeKey = (typeof BADGES)[number]['key'];
+
+/** Saved as the place when the person does not know where it was lost or found. Never counts as "same place". */
+export const PLACE_UNKNOWN = 'Not sure';
+export const isKnownPlace = (place: string | null | undefined) => !!place && place !== PLACE_UNKNOWN;
 

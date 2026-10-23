@@ -390,6 +390,11 @@ nav a::before{display:none}
 .sightform{width:100%}
 .sightform textarea{width:100%}
 .sighting{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;margin-bottom:6px;border-radius:8px;background:var(--amberbg);border:1px solid var(--yellow)}
+.notsure{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin:4px 0 0;padding:10px 14px;border:2px dashed var(--line-strong);border-radius:16px;background:var(--card);cursor:pointer;font:inherit;color:var(--ink);transition:border-color .15s,background .15s}
+.notsure>span:first-child{font-size:24px}
+.notsure b{display:block}
+.notsure:hover{border-color:var(--coral)}
+.notsure.on{border-style:solid;border-color:var(--coral);background:var(--peach)}
 .askhelp{background:var(--brand-bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:12px}
 /* thank-you wall */
 .wall-hero h1{font-size:24px}
@@ -670,6 +675,9 @@ nav a svg{opacity:1;padding:5px;width:28px;height:28px;border-radius:10px;backgr
 nav a:hover{background:rgba(255,249,241,.55);color:var(--ink)}
 nav a.on{background:var(--cream);color:var(--ink);font-weight:800;box-shadow:0 6px 14px -8px rgba(73,55,41,.4)}
 nav a.on svg{background:var(--peach)}
+nav a svg.navart{padding:3px;width:34px;height:34px;border-radius:12px;background:rgba(255,249,241,.75);box-shadow:inset 0 -2px 0 rgba(73,55,41,.06),0 3px 6px -4px rgba(73,55,41,.35);transition:transform .2s}
+nav a:hover svg.navart{transform:rotate(-6deg) scale(1.08)}
+nav a.on svg.navart{background:var(--warm);box-shadow:0 0 0 2px var(--coral),0 4px 8px -4px rgba(73,55,41,.4)}
 
 /* top bar floats on the cream background */
 .topbar{background:rgba(255,243,228,.85);backdrop-filter:blur(8px);border-bottom:0}

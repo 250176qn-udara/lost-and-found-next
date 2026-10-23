@@ -4,6 +4,7 @@ import { all, exec, pool } from './db';
 import type { Claim, Item, ItemStatus, Kind } from './types';
 import { distanceM, NEAR_METERS, num } from './geo';
 import { geminiReady, rankMatchesWithGemini, type MatchSide } from './gemini';
+import { isKnownPlace } from './constants';
 
 /** Shapes one items-table row (never includes the photo itself, only whether one exists). */
 export function itemRow(r: Record<string, unknown>): Item {
@@ -87,7 +88,7 @@ export async function findMatch(orgId: number, kind: Kind, category: string, pla
              AND status IN (${wantStatus.map(() => '?').join(',')}) AND (category = ? OR LOWER(place) = LOWER(?))
              AND created_at > NOW() - INTERVAL 120 DAY
        ORDER BY (id = ?) DESC, (category = ?) DESC, id DESC LIMIT 8`,
-      [orgId, wantKind, id, ...wantStatus, category, place, ruleId ?? 0, category]);
+      [orgId, wantKind, id, ...wantStatus, category, isKnownPlace(place) ? place : '\u0000', ruleId ?? 0, category]);
     if (!me || !rows.length) return { match: null, checked: 0, ai: true };
     const side = (r: Record<string, unknown>): MatchSide => ({
       id: Number(r.id), title: String(r.title), category: String(r.category), place: String(r.place),
@@ -128,7 +129,7 @@ export async function findMatchFor(orgId: number, kind: Kind, category: string, 
   for (const r of rows) {
     const near = pin.lat !== null && pin.lng !== null && r.lat !== null && r.lng !== null
       && distanceM({ lat: pin.lat, lng: pin.lng }, { lat: Number(r.lat), lng: Number(r.lng) }) <= NEAR_METERS;
-    const samePlace = r.place.toLowerCase() === place.toLowerCase() || near;
+    const samePlace = (isKnownPlace(place) && r.place.toLowerCase() === place.toLowerCase()) || near;
     const sameDate = date !== null && r.item_date === date;
     if (samePlace && sameDate) return r.id;
     if (samePlace && placeMatch === null) placeMatch = r.id;

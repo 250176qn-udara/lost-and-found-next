@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requirePage } from '@/lib/auth';
 import { getOrgSettings } from '@/lib/settings';
+import { PLACE_UNKNOWN } from '@/lib/constants';
 import { getClaimEvents, getItemDetail, getPlaces, getThanks } from '@/lib/data';
 import { keepUntil, finderJourney, ownerJourney, staffJourney, type Journey } from '@/lib/journey';
 import { JourneyBar, JourneyPanel, KeepLimit } from '@/components/Journey';
@@ -99,7 +100,9 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
           </div>
           <div className="box" style={{ marginBottom: 16 }}>
             <h2 style={{ marginTop: 0 }}>{t('Where')}</h2>
-            <FloorPlan places={[...places.map(p => p.name), it.place]} selected={it.place} />
+            {it.place === PLACE_UNKNOWN
+              ? <p className="meta" style={{ margin: 0 }}>🤷 {t('The person was not sure where. Matching uses the item, category and date.')}</p>
+              : <FloorPlan places={[...places.map(p => p.name), it.place]} selected={it.place} />}
             {it.lat != null && it.lng != null && (
               <details className="mapfold">
                 <summary>{t('Street map')}</summary>

@@ -91,7 +91,7 @@ export async function rankMatchesWithGemini(item: MatchSide & { kind: 'lost' | '
   const parts: Part[] = [];
   let photos = 0;
   const describe = (s: MatchSide, label: string) => {
-    parts.push({ text: `${label} [id ${s.id}] "${s.title}" · category: ${s.category} · place: ${s.place} · date: ${s.date ?? 'unknown'}` +
+    parts.push({ text: `${label} [id ${s.id}] "${s.title}" · category: ${s.category} · place: ${s.place === 'Not sure' ? 'unknown (the person is not sure)' : s.place} · date: ${s.date ?? 'unknown'}` +
       ` · details: ${(s.description ?? '').replace(/\s+/g, ' ').slice(0, 400) || 'none'}` });
     const img = photos < 5 ? imagePart(s.photo) : null;
     if (img) { parts.push(img); photos++; }
