@@ -1,4 +1,4 @@
-// Pastel dashboard pieces shared by the member dashboard and the admin overview. No hooks.
+// Dashboard pieces shared by the member dashboard and the admin overview. No hooks.
 import Link from 'next/link';
 import type { T } from '@/lib/i18n';
 import type { MatchPair } from '@/lib/types';
@@ -7,19 +7,19 @@ import { CountUp } from './Animated';
 import { Icon } from './Icon';
 import { placeDate } from './ui';
 
-/** Four pastel statistic cards from real counts. */
+/** Four statistic cards from real counts. */
 export function StatCards({ c, t }: { c: { lost: number; found: number; returned: number; unclaimed: number }; t: T }) {
   const cards = [
-    { tone: 'peach', icon: '🔎', n: c.lost, label: 'Lost items reported', href: '/my-items' },
-    { tone: 'mint', icon: '🎒', n: c.found, label: 'Found items posted', href: '/browse' },
-    { tone: 'yellow', icon: '💝', n: c.returned, label: 'Returned to owners', href: '/wall' },
-    { tone: 'blue', icon: '📦', n: c.unclaimed, label: 'Waiting for their owner', href: '/browse' },
+    { tone: 'peach', icon: 'search', n: c.lost, label: 'Lost items reported', href: '/my-items' },
+    { tone: 'mint', icon: 'grid', n: c.found, label: 'Found items posted', href: '/browse' },
+    { tone: 'yellow', icon: 'check', n: c.returned, label: 'Returned to owners', href: '/wall' },
+    { tone: 'blue', icon: 'box', n: c.unclaimed, label: 'Waiting for their owner', href: '/browse' },
   ];
   return (
     <div className="statrow">
       {cards.map((k, i) => (
         <Link key={k.label} href={k.href} className={'statcard ' + k.tone} style={{ animationDelay: `${i * 0.07}s` }}>
-          <span className="sc-icon" aria-hidden="true">{k.icon}</span>
+          <span className="sc-icon" aria-hidden="true"><Icon name={k.icon} size={20} /></span>
           <b><CountUp value={k.n} delay={i * 70} /></b>
           <span>{t(k.label)}</span>
         </Link>

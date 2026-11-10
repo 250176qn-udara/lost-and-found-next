@@ -6,6 +6,7 @@ import { reportItem, type ReportMatch } from '@/app/actions';
 import { scoreClass } from '@/lib/match';
 import { Icon } from '@/components/Icon';
 import { MAX_PHOTO_BYTES } from '@/lib/constants';
+import type { T } from '@/lib/i18n';
 import type { Kind, Place } from '@/lib/types';
 import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
 import { useT, useToast } from '@/components/Providers';
@@ -89,7 +90,8 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
       <div className="wiz">
         {STEPS.map((s, i) => <span key={s} className={step === i + 1 ? 'on' : step > i + 1 ? 'done' : ''}><b>{i + 1}</b> {t(s)}</span>)}
       </div>
-      <div className="box" style={{ maxWidth: 680 }}>
+      <div className="withaside">
+      <div className="box">
         {step === 1 && (
           <>
             <div className="seg">
@@ -189,7 +191,39 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
             : <button className="btn" disabled={busy} onClick={submit}>{t(busy ? 'Checking…' : 'Submit report')}</button>}
         </div>
       </div>
+      <ReportTips step={step} kind={kind} t={t} />
+      </div>
     </>
+  );
+}
+
+/** Help beside the wizard: what to fill in on this step, and what happens after. */
+const TIPS: Record<number, { title: string; lost: string[]; found: string[] }> = {
+  1: { title: 'How reporting works',
+    lost: ['Report it as soon as you notice. Every new found item is compared with your report.', 'You get a notification when there is a possible match.', 'You can follow every step in My items.'],
+    found: ['Thank you for helping! The item is listed for your community right away.', 'Keep it safe until the owner is confirmed, or bring it to the office.', 'Staff check the owner’s ID before anything is returned.'] },
+  2: { title: 'Describe the item',
+    lost: ['Use a short, simple name, e.g. “Black wallet”.', 'Pick the closest category. Matching uses it.', 'Colour, brand and stickers help prove the item is yours.'],
+    found: ['Use a short, simple name, e.g. “Black wallet”.', 'Pick the closest category. Matching uses it.', 'Colour, brand and marks stay private. Staff use them to check the owner.'] },
+  3: { title: 'Where and when',
+    lost: ['Choose the building and room where you last had it.', 'Not sure of the exact place? Pick the nearest one.', 'Use the day you last had it.'],
+    found: ['Choose the building and room where you found it.', 'The place helps the owner recognise the item.', 'Use the day you found it.'] },
+  4: { title: 'Photo and details',
+    lost: ['A photo of the same model helps people recognise it.', 'Write details only the owner would know, like what is inside.'],
+    found: ['A clear photo helps the owner find it quickly.', 'Write what is inside or any name tag in the private details. Only staff see them.'] },
+  5: { title: 'Before you submit',
+    lost: ['Check the name, place and date.', 'After you submit, you can follow your report in My items.', 'When it is found, bring your photo ID to pick it up.'],
+    found: ['Check the name, place and date.', 'After you submit, you can follow the item in My items.', 'If nobody claims it, please bring it to the office in time.'] },
+};
+
+function ReportTips({ step, kind, t }: { step: number; kind: Kind; t: T }) {
+  const tip = TIPS[step];
+  return (
+    <aside className="tips" aria-label={t('Tips')}>
+      <div className="tips-head"><span className="icon-chip"><Icon name="spark" /></span><b>{t(tip.title)}</b></div>
+      <ul>{tip[kind].map(x => <li key={x}><Icon name="check" size={16} />{t(x)}</li>)}</ul>
+      <div className="tips-step">{t('Step {n} of {total}', { n: step, total: STEPS.length })}</div>
+    </aside>
   );
 }
 

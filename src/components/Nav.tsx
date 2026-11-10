@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { NAV } from '@/lib/constants';
 import type { Role } from '@/lib/types';
 import { Icon } from './Icon';
-import { NavArt } from './NavArt';
 import { useT } from './Providers';
 
 export function Nav({ role }: { role: Role }) {
@@ -20,9 +19,9 @@ export function Nav({ role }: { role: Role }) {
           {g.links.map(([href, label, icon]) => (
             href.endsWith('.html')
               // A static page (the interactive guide), not an app route.
-              ? <a key={href} href={href}>{NavArt({ name: icon }) ?? <Icon name={icon} size={18} />}{t(label)}</a>
+              ? <a key={href} href={href}><Icon name={icon} size={18} />{t(label)}</a>
               : <Link key={href} href={href} className={isOn(href) ? 'on' : ''}>
-                  {NavArt({ name: icon }) ?? <Icon name={icon} size={18} />}{t(label)}
+                  <Icon name={icon} size={18} />{t(label)}
                 </Link>
           ))}
         </div>

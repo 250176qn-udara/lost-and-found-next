@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { markOfficeRead, sendOfficeMessage } from '@/app/actions';
 import type { OfficeMessage } from '@/lib/data';
-import { Buddy, BuddyPair } from '@/components/ChatBuddies';
+import { Icon } from '@/components/Icon';
 import { useT } from '@/components/Providers';
 import { ErrorText } from '@/components/ui';
 
@@ -13,6 +13,8 @@ const QUICK_STAFF = ['Please bring the item to the office.', 'Your item is ready
 const QUICK_MEMBER = ['When is the office open?', 'I will come to pick it up today.', 'Thank you!'];
 /** How often an open chat checks for new messages. */
 const POLL_MS = 5000;
+/** "AT" from "Aiko Tanaka": the sender's avatar text. */
+const initials = (name: string) => name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
 /** One conversation. memberId = null for the member's own chat with the office. */
 export function ChatWindow({ memberId, messages, viewer, title, meId }: { memberId: number | null; messages: OfficeMessage[]; viewer: 'staff' | 'member'; title: string; meId: number }) {
@@ -54,15 +56,14 @@ export function ChatWindow({ memberId, messages, viewer, title, meId }: { member
   return (
     <div className="box chatwin">
       <div className="chatwin-head">
-        <BuddyPair size={40} />
+        <span className="icon-chip"><Icon name="chat" /></span>
         <div style={{ minWidth: 0 }}><b>{title}</b><div className="meta">{t(staff ? 'Member' : 'Staff and admins of your organization')}</div></div>
-        <span className="grow" />
-        <span className="meta buddy-names">🐻 {t('Kuma (office)')} · 🐰 {t('Usa (student)')}</span>
       </div>
       <div className="chatwin-log" ref={log}>
         {messages.length === 0 && (
           <div className="chat-empty">
-            <BuddyPair size={72} speech={t(staff ? 'Say hello! Write the first message below.' : 'Hi! We are Kuma and Usa. Ask the office anything about your lost or found items.')} />
+            <span className="icon-chip"><Icon name="chat" size={22} /></span>
+            <span>{t(staff ? 'Say hello! Write the first message below.' : 'Ask the office anything about your lost or found items.')}</span>
           </div>
         )}
         {messages.map((m, i) => {
@@ -72,7 +73,7 @@ export function ChatWindow({ memberId, messages, viewer, title, meId }: { member
             <div key={m.id}>
               {(i === 0 || messages[i - 1].createdAt.slice(0, 10) !== day) && <div className="chatday">{day}</div>}
               <div className={'chatrow' + (mine ? ' me' : '')}>
-                <Buddy who={m.fromStaff ? 'office' : 'student'} size={34} label={m.fromStaff ? t('Kuma (office)') : t('Usa (student)')} />
+                <span className={'chatwho' + (m.fromStaff ? ' office' : '')} aria-hidden="true">{initials(who(m))}</span>
                 <div className={'bubble' + (mine ? ' me' : '')}>
                   {m.body}
                   {m.itemId && <Link href={`/items/${m.itemId}`} className="bubble-link">{t('Open the item')} →</Link>}

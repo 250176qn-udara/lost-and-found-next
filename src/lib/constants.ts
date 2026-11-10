@@ -2,7 +2,7 @@ import type { Role } from './types';
 
 export const STEPS = ['Reported', 'Registered', 'Matched', 'Verified', 'Returned'];
 /** Chart colours (pastel theme). */
-export const COLORS = ['#F6A18C', '#A9C7B5', '#F8D99B', '#9DB8D3', '#D8A8C2', '#C9B79C'];
+export const COLORS = ['#14B8A6', '#6366F1', '#EC4899', '#F59E0B', '#0EA5E9', '#A855F7'];
 
 /** Item categories, chosen for an IT college (laptops, chargers, student IDs, commuter passes...). */
 export const CATEGORIES = ['Smartphone', 'Laptop / tablet', 'Earphones', 'Charger / cable', 'USB / storage', 'Electronics', 'ID card', 'IC card / pass', 'Wallet', 'Keys', 'Bag', 'Umbrella', 'Clothing', 'Textbook / stationery', 'Water bottle', 'Other'];
@@ -68,7 +68,7 @@ export const SETTING_LIMITS = { storageDays: [30, 60, 90, 180, 365], policeDays:
 export const FINDER_KEEP_DAYS = 5;
 
 /** Kinds of notification. Each user chooses per kind: in the app, by email, or both. */
-export type NotifyEvent = 'matches' | 'claims' | 'thanks' | 'messages' | 'items' | 'alerts';
+export type NotifyEvent = 'matches' | 'claims' | 'thanks' | 'messages' | 'items' | 'alerts' | 'posts';
 export type NotifyPrefs = Record<NotifyEvent, { app: boolean; email: boolean }>;
 export const NOTIFY_EVENTS: { key: NotifyEvent; label: string; sub: string; staff: boolean; member: boolean }[] = [
   { key: 'matches', label: 'Matches', sub: 'A found item may be the one you lost', member: true, staff: false },
@@ -77,11 +77,13 @@ export const NOTIFY_EVENTS: { key: NotifyEvent; label: string; sub: string; staf
   { key: 'messages', label: 'Messages', sub: 'New chat messages', member: true, staff: true },
   { key: 'items', label: 'Found items to check', sub: 'Members posted or handed in a found item', member: false, staff: true },
   { key: 'alerts', label: '"Have you seen this?" alerts', sub: 'Someone lost something in a building you watch', member: true, staff: false },
+  { key: 'posts', label: 'New community posts', sub: 'Someone posted a lost or found item', member: true, staff: true },
 ];
 /** Members get emails by default; staff only in the app (the whole office would get every email). */
 export const defaultNotifyPrefs = (staff: boolean): NotifyPrefs => ({
   matches: { app: true, email: !staff }, claims: { app: true, email: !staff }, thanks: { app: true, email: !staff },
   messages: { app: true, email: !staff }, items: { app: true, email: false }, alerts: { app: true, email: false },
+  posts: { app: true, email: false },
 });
 
 

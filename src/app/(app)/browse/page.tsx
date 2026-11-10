@@ -152,6 +152,14 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
           <Link className="btn" href="/report">{t('I lost something')}</Link>
         </Empty>
       )}
+
+      {view !== 'help' && list.length > 0 && user.role === 'member' && (
+        <div className="helpstrip">
+          <span className="icon-chip"><Icon name="search" /></span>
+          <div><b>{t('Can’t find your item?')}</b><div className="meta">{t('Report what you lost. We compare it with every new found item and notify you when there is a possible match.')}</div></div>
+          <Link className="btn" href="/report">{t('Report lost item')}</Link>
+        </div>
+      )}
     </>
   );
 }

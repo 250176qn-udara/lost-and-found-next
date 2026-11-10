@@ -5,10 +5,10 @@ import { STEPS } from '@/lib/constants';
 import type { T } from '@/lib/i18n';
 
 export const Head = ({ title, sub }: { title: string; sub: string }) => (
-  <>
+  <header className="pagehead">
     <h1>{title}</h1>
     <p className="sub">{sub}</p>
-  </>
+  </header>
 );
 
 export const Stat = ({ n, label }: { n: ReactNode; label: string }) => (

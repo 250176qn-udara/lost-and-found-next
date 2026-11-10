@@ -26,6 +26,25 @@ export async function getHelpWanted(orgId: number, uid: number): Promise<HelpWan
     hasPhoto: Boolean(Number(r.has_photo)), iSaw: Boolean(Number(r.i_saw)) }));
 }
 
+export type FeedPost = { id: number; kind: 'lost' | 'found'; title: string; category: string; place: string; date: string | null;
+  createdAt: string; hasPhoto: boolean; mine: boolean; isNew: boolean };
+
+/** Newest lost and found posts in the community, for every dashboard. The same fields the Found items page and
+ *  "Have you seen these?" already show (never the reporter's name). Open items only; sensitive ones follow the org setting. */
+export async function getCommunityFeed(orgId: number, uid: number, hideSensitive: boolean, limit = 12): Promise<FeedPost[]> {
+  const hide = hideSensitive ? `AND (reporter_id = ? OR category NOT IN (${SENSITIVE_CATEGORIES.map(() => '?').join(',')}))` : '';
+  const rows = await all<Record<string, unknown>>(
+    `SELECT id, kind, title, category, place, item_date, created_at, (photo IS NOT NULL) AS has_photo, (reporter_id = ?) AS mine,
+            (created_at >= NOW() - INTERVAL 1 DAY) AS is_new
+     FROM items
+     WHERE organization_id = ? AND ((kind = 'found' AND status BETWEEN 2 AND 4) OR (kind = 'lost' AND status BETWEEN 1 AND 3)) ${hide}
+     ORDER BY id DESC LIMIT ${Math.max(1, Math.floor(limit))}`,
+    hideSensitive ? [uid, orgId, uid, ...SENSITIVE_CATEGORIES] : [uid, orgId]);
+  return rows.map(r => ({ id: Number(r.id), kind: r.kind === 'lost' ? 'lost' : 'found', title: String(r.title), category: String(r.category),
+    place: String(r.place), date: s(r.item_date), createdAt: String(r.created_at), hasPhoto: Boolean(Number(r.has_photo)),
+    mine: Boolean(Number(r.mine)), isNew: Boolean(Number(r.is_new)) }));
+}
+
 export type Sighting = { id: number; itemId: number; note: string; at: string };
 
 /** What others said about the owner's lost items (never who said it). */

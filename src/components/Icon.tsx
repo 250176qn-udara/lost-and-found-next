@@ -66,13 +66,13 @@ const CAT_ICON: Record<string, string> = {
   Clothing: 'clothing', 'Textbook / stationery': 'book', 'Water bottle': 'bottle', Other: 'other',
 };
 const CAT_TINT: Record<string, [bg: string, fg: string]> = {
-  // pastel tiles with a darker tone of the same colour for the picture (readable, clay-like)
-  Wallet: ['#FBE6BC', '#8A5F14'], Bag: ['#DCE7F1', '#46668A'], Electronics: ['#DCE7F1', '#46668A'],
-  'ID card': ['#FFE3D7', '#A4533F'], Keys: ['#DCEBE2', '#3F6B52'], Other: ['#F3E6D8', '#806B5B'],
-  Smartphone: ['#DCE7F1', '#46668A'], 'Laptop / tablet': ['#E4ECF4', '#4E6E8E'], Earphones: ['#EADFF0', '#6E5487'],
-  'Charger / cable': ['#FBE6BC', '#8A5F14'], 'USB / storage': ['#DCEBE2', '#3F6B52'], 'IC card / pass': ['#FFE3D7', '#A4533F'],
-  Umbrella: ['#DCE7F1', '#46668A'], Clothing: ['#F8DDE6', '#9A4A66'], 'Textbook / stationery': ['#FFE6D2', '#9A5A2E'],
-  'Water bottle': ['#D9ECEC', '#2F6E6E'],
+  // light tint with a strong tone of the same hue for the icon
+  Wallet: ['#FEF3C7', '#B45309'], Bag: ['#E0E7FF', '#4338CA'], Electronics: ['#E0F2FE', '#0369A1'],
+  'ID card': ['#FFE4E6', '#BE123C'], Keys: ['#D1FAE5', '#047857'], Other: ['#F1F5F9', '#475569'],
+  Smartphone: ['#E0F2FE', '#0369A1'], 'Laptop / tablet': ['#E0E7FF', '#4338CA'], Earphones: ['#F3E8FF', '#7E22CE'],
+  'Charger / cable': ['#FEF3C7', '#B45309'], 'USB / storage': ['#CCFBF1', '#0F766E'], 'IC card / pass': ['#FCE7F3', '#BE185D'],
+  Umbrella: ['#DBEAFE', '#1D4ED8'], Clothing: ['#FFE4E6', '#BE123C'], 'Textbook / stationery': ['#FFEDD5', '#C2410C'],
+  'Water bottle': ['#CFFAFE', '#0E7490'],
 };
 
 /** A coloured tile with the category's picture. Used instead of a photo. */

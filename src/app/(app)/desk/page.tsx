@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
+import { CommunityFeed } from '@/components/CommunityFeed';
+import { getCommunityFeed } from '@/lib/community';
 import { getOrgSettings } from '@/lib/settings';
 import { getClaimMessages, getClaimsQueue, getQueue } from '@/lib/data';
 import { ClaimChat } from '@/components/ClaimChat';
@@ -17,7 +19,8 @@ const ago = (s: string) => Math.max(0, Math.floor((Date.now() - Date.parse(s.rep
 export default async function DeskPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { user } = await requirePage({ roles: ['staff', 'admin'] });
   const orgId = user.organizationId!;
-  const [{ tab }, t, claims, outside, settings] = await Promise.all([searchParams, getT(), getClaimsQueue(orgId), getQueue(orgId), getOrgSettings(orgId)]);
+  const [{ tab }, t, claims, outside, settings, feed] = await Promise.all([searchParams, getT(), getClaimsQueue(orgId), getQueue(orgId), getOrgSettings(orgId),
+    getCommunityFeed(orgId, user.id, false)]);
   const pending = claims.filter(c => c.status === 'pending');
   const msgs = await getClaimMessages(claims.map(c => c.id));
   const newReply = (id: number) => (msgs[id] ?? []).some(m => !m.fromStaff && !m.readAt);
@@ -101,6 +104,8 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           )) : <Empty art="empty" title={t('No found items are waiting outside the office.')} />}
         </>
       )}
+
+      <CommunityFeed posts={feed} staff />
     </>
   );
 }

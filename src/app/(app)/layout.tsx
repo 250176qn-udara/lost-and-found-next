@@ -9,10 +9,7 @@ import { getT } from '@/lib/i18n-server';
 import { Bell } from '@/components/Bell';
 import { Nav } from '@/components/Nav';
 import { LangButton, UserPill } from '@/components/HeaderControls';
-import { Illustration } from '@/components/Illustration';
-
-/** "Aiko" from "Aiko Tanaka", but the full name when it starts with a title ("Mr. Yamada"). */
-const firstName = (name: string) => { const f = name.split(' ')[0]; return f.endsWith('.') ? name : f; };
+import { TopSearch } from '@/components/TopSearch';
 
 /** App shell: sidebar (brand, organization, menu) + top bar (bell, language, account). Each page adds its own role checks. */
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -29,18 +26,17 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
       <aside className="side">
-        <div className="brand"><i></i>{t('Lost & Found')}</div>
-        <div className="side-hello">
-          <Illustration name="mascot" size={54} />
-          <div><b>{t('Hello, {name}!', { name: firstName(user.name) })}</b><span>{t('Let’s help things find their way home.')}</span></div>
-        </div>
+        <div className="brand"><i></i><span>{t('Lost & Found')}</span></div>
         {org && <div className="org">{t(org.name)}</div>}
         <Nav role={user.role} />
       </aside>
       <div className="mainwrap">
         <header className="topbar">
+          {orgId && user.role !== 'super' && (user.role === 'member'
+            ? <TopSearch action="/browse" placeholder={t('Search found items')} />
+            : <TopSearch action="/items" placeholder={t('Search items')} />)}
           <span className="grow" />
-          {orgId && user.role !== 'super' && <Bell unread={notices.filter(n => !n.read).length} label={t('Notifications')} />}
+          {orgId && user.role !== 'super' && <Bell notices={notices.slice(0, 8)} unread={notices.filter(n => !n.read).length} />}
           <LangButton />
           <UserPill name={user.name} role={t(ROLE_NAMES[user.role])} />
         </header>

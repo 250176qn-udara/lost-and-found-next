@@ -5,7 +5,7 @@ import { getWall, helperOfMonth, lastMonth, returnedThisMonth } from '@/lib/comm
 import { CountUp } from '@/components/Animated';
 import { ClapButton } from '@/components/Community';
 import { CategoryArt } from '@/components/Icon';
-import { Empty, Illustration } from '@/components/Illustration';
+import { Empty } from '@/components/Illustration';
 import { when } from '@/components/ui';
 
 /** Thank-you wall: anonymous stories of items that went back to their owners, this month's count and Helper of the month. */
@@ -21,10 +21,9 @@ export default async function WallPage() {
       <div className="hero dash-hero wall-hero">
         <div className="dash-hero-text">
           <span className="hero-kicker">{t('Thank-you wall')}</span>
-          <h1><CountUp value={count} /> {t(count === 1 ? 'item went back to its owner this month' : 'items went back to their owners this month')} ❤️</h1>
+          <h1><CountUp value={count} /> {t(count === 1 ? 'item went back to its owner this month' : 'items went back to their owners this month')}</h1>
           <p>{t('Every story here is a small act of kindness by someone in our school. Tap 👏 to say thanks too.')}</p>
         </div>
-        <Illustration name="done" size={170} className="hero-art" />
       </div>
 
       {helper && (

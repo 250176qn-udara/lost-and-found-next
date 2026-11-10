@@ -13,6 +13,9 @@ import { getMatchPairs } from '@/lib/data';
 import { StatCards, SuggestedMatches } from '@/components/Dashboard';
 import type { Item } from '@/lib/types';
 import { CategoryArt, Icon } from '@/components/Icon';
+import { HeroArt } from '@/components/HeroArt';
+import { CommunityFeed } from '@/components/CommunityFeed';
+import { getCommunityFeed } from '@/lib/community';
 import { Empty, Illustration } from '@/components/Illustration';
 import { placeDate, Stat, when } from '@/components/ui';
 
@@ -21,11 +24,12 @@ const hasMatch = (i: Item) => i.status === 3 && i.kind === 'lost' && !!i.matched
 export default async function HomePage() {
   const { user } = await requirePage({ membership: true });
   const orgId = user.organizationId!;
-  const [t, mine, claims, community, notices, finderTasks, unthanked, { keepDays }, points, ranking] = await Promise.all([
+  const [t, mine, claims, community, notices, finderTasks, unthanked, { keepDays, hideSensitive }, points, ranking] = await Promise.all([
     getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getCommunityStats(orgId, user.id), getNotices(user.id, user.role, orgId),
     getFinderTasks(user.id, orgId), getUnthankedReturns(user.id), getOrgSettings(orgId), getPoints(user.id, orgId), getRanking(orgId, 3),
   ]);
-  const [onFinds, counts, pairs] = await Promise.all([getClaimsOnMyFinds(user.id, orgId), getItemCounts(orgId), getMatchPairs(orgId, user.id)]);
+  const [onFinds, counts, pairs, feed] = await Promise.all([getClaimsOnMyFinds(user.id, orgId), getItemCounts(orgId), getMatchPairs(orgId, user.id),
+    getCommunityFeed(orgId, user.id, hideSensitive && user.role === 'member')]);
   const openPairs = pairs.filter(p => p.lostStatus < 4 && p.claimStatus !== 'pending' && p.claimStatus !== 'approved');
   const journeyOf = (i: Item) => {
     if (i.kind === 'found') return finderJourney({ claim: onFinds.get(i.id) ?? null, handedIn: !!i.handedInAt, atOffice: !!i.receivedAt, returned: i.status === 5, thanked: false,
@@ -50,9 +54,7 @@ export default async function HomePage() {
   return (
     <>
       <div className="hero dash-hero">
-        <span className="deco" style={{ left: '46%', top: 18 }} aria-hidden="true">✦</span>
-        <span className="deco d2" style={{ left: '58%', bottom: 22 }} aria-hidden="true">♥</span>
-        <span className="deco d3" style={{ right: 230, top: 30 }} aria-hidden="true">★</span>
+        <HeroArt sign={t('Lost & Found')} />
         <div className="dash-hero-text">
           <span className="hero-kicker">{t('Dashboard')}</span>
           <h1>{t('Welcome back, {name}!', { name: user.name.split(' ')[0] })}</h1>
@@ -63,9 +65,9 @@ export default async function HomePage() {
           </div>
           {open.length > 0 && <p className="meta" style={{ margin: '12px 0 0' }}>{open.length === 1 ? t('1 item in progress.') : t('{n} items in progress.', { n: open.length })}</p>}
         </div>
-        <Illustration name="finder" size={190} className="hero-art" />
       </div>
       <StatCards c={counts} t={t} />
+      <CommunityFeed posts={feed} staff={user.role !== 'member'} />
 
       {mine.length === 0 && claims.length === 0 && (
         <a href={GUIDE_URL} className="guidecard" style={{ marginBottom: 20 }}>
@@ -76,7 +78,7 @@ export default async function HomePage() {
       )}
       {openPairs.length > 0 && (
         <>
-          <h2>✨ {t('Suggested matches for you')}</h2>
+          <h2>{t('Suggested matches for you')}</h2>
           <SuggestedMatches pairs={openPairs.slice(0, 3)} t={t} reviewHref="/my-items" />
         </>
       )}
@@ -96,7 +98,7 @@ export default async function HomePage() {
 
       <h2>{t('Your items')}</h2>
       {open.length ? (
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))' }}>
           {open.slice(0, 4).map(i => (
             <Link key={i.id} href={`/my-items${i.kind === 'found' ? '?tab=found' : ''}`} className="box" style={{ color: 'inherit', textDecoration: 'none' }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -113,7 +115,7 @@ export default async function HomePage() {
       ) : <Empty art="empty" title={t('Nothing in progress.')} text={t('Lost or found something? Report it in a few taps.')} />}
       {open.length > 4 && <div className="btnrow"><Link className="btn sec" href="/my-items">{t('See all my items')}</Link></div>}
 
-      <div className="cols even" style={{ marginTop: 8 }}>
+      <div className="cols three" style={{ marginTop: 8 }}>
         <div>
           <h2>{t('Recent activity')}</h2>
           {notices.length ? (
@@ -131,16 +133,19 @@ export default async function HomePage() {
         <div>
           <h2>{t('Your points')}</h2>
           <PointsCard p={points} t={t} compact />
+        </div>
+        <div>
           <h2>{t('Top helpers')}</h2>
           <Ranking rows={ranking} meId={user.id} t={t} />
-          <h2>{t('Community')}</h2>
-          <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <Stat n={community.month} label={t('Returned this month')} />
-            <Stat n={community.rate + '%'} label={t('Community return rate')} />
-            <Stat n={community.helped} label={t('Items you helped return')} />
-            <Stat n={claims.filter(c => c.status === 'returned').length} label={t('Items you got back')} />
-          </div>
         </div>
+      </div>
+
+      <h2>{t('Community')}</h2>
+      <div className="grid four">
+        <Stat n={community.month} label={t('Returned this month')} />
+        <Stat n={community.rate + '%'} label={t('Community return rate')} />
+        <Stat n={community.helped} label={t('Items you helped return')} />
+        <Stat n={claims.filter(c => c.status === 'returned').length} label={t('Items you got back')} />
       </div>
     </>
   );

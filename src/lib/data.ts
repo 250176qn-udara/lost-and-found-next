@@ -1,6 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
-import { FINDER_KEEP_DAYS, type NotifyEvent } from './constants';
+import { FINDER_KEEP_DAYS, SENSITIVE_CATEGORIES, type NotifyEvent } from './constants';
+import { getOrgSettings } from './settings';
 import { getPrefs, getReadIds } from './prefs';
 import { buildingOf } from './places';
 import { all, one } from './db';
@@ -256,6 +257,7 @@ export async function getMemberRows(orgId: number): Promise<MemberRow[]> {
 
 /** Which kind a notice is, from its id prefix (see the builders below). */
 function noticeEvent(id: string): NotifyEvent {
+  if (id.startsWith('np')) return 'posts';
   if (id.startsWith('om')) return 'messages';
   if (id.startsWith('sa')) return 'alerts';
   if (id.startsWith('sg')) return 'matches';
@@ -267,10 +269,30 @@ function noticeEvent(id: string): NotifyEvent {
 
 /** The user's notifications with read state, without the kinds they turned off in the app. Cached per request. */
 export const getNotices = cache(async (uid: number, role: Role, orgId: number): Promise<Notice[]> => {
-  const [list, prefs, read] = await Promise.all([
-    role === 'member' ? getMemberNotices(uid, orgId) : getStaffNotices(orgId), getPrefs(uid), getReadIds(uid)]);
+  const [own, posts, prefs, read] = await Promise.all([
+    role === 'member' ? getMemberNotices(uid, orgId) : getStaffNotices(orgId), getPostNotices(uid, orgId, role !== 'member'), getPrefs(uid), getReadIds(uid)]);
+  // A post that already has its own notice (a "Have you seen this?" alert, or a found item for staff to check) is not repeated.
+  const covered = new Set(own.map(n => n.id.match(/^(?:sa|q|hd)(\d+)$/)?.[1]).filter(Boolean));
+  const list = [...own, ...posts.filter(p => !covered.has(p.id.slice(2)))].sort((a, b) => b.at.localeCompare(a.at));
   return list.map(n => ({ ...n, event: noticeEvent(n.id), read: read.has(n.id) })).filter(n => prefs.notify[n.event].app);
 });
+
+/** "New lost / found post": what other people posted in the last 7 days, so everyone hears about it from the bell.
+ *  Members see the same fields as the community feed (never who posted), and sensitive items follow the org setting. */
+export async function getPostNotices(uid: number, orgId: number, staff: boolean): Promise<Notice[]> {
+  const hide = !staff && (await getOrgSettings(orgId)).hideSensitive;
+  const rows = await all<{ id: number; kind: Kind; title: string; place: string; created_at: string }>(
+    `SELECT id, kind, title, place, created_at FROM items
+     WHERE organization_id = ? AND reporter_id <> ? AND created_at >= NOW() - INTERVAL 7 DAY
+       AND ((kind = 'found' AND status BETWEEN ${staff ? 1 : 2} AND 4) OR (kind = 'lost' AND status BETWEEN 1 AND 3))
+       ${hide ? `AND category NOT IN (${SENSITIVE_CATEGORIES.map(() => '?').join(',')})` : ''}
+     ORDER BY id DESC LIMIT 30`, hide ? [orgId, uid, ...SENSITIVE_CATEGORIES] : [orgId, uid]);
+  return rows.map(r => ({
+    id: `np${r.id}`, title: r.kind === 'lost' ? 'New post: someone lost an item' : 'New post: someone found an item',
+    text: `${r.title} · ${r.place}`, at: String(r.created_at),
+    href: staff || r.kind === 'found' ? `/items/${r.id}` : `/browse?view=help#i${r.id}`,
+  }));
+}
 
 export async function getMemberNotices(uid: number, orgId: number): Promise<Notice[]> {
   const [claims, matches, handedIn, onMyFinds] = await Promise.all([

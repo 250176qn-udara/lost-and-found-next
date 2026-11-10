@@ -6,6 +6,9 @@ import { SuggestedMatches } from '@/components/Dashboard';
 import { getT } from '@/lib/i18n-server';
 import { getAlertCounts, getDashboard } from '@/lib/stats';
 import { Icon } from '@/components/Icon';
+import { HeroArt } from '@/components/HeroArt';
+import { CommunityFeed } from '@/components/CommunityFeed';
+import { getCommunityFeed } from '@/lib/community';
 import { Empty, Illustration } from '@/components/Illustration';
 import { Bars } from '@/components/ui';
 import { CountUp, DonutChart } from '@/components/Animated';
@@ -17,7 +20,8 @@ const SEV: Record<Sev, [badge: string, chip: string]> = { High: ['no', 'red'], M
 export default async function OverviewPage() {
   const { user } = await requirePage({ roles: ['admin'] });
   const orgId = user.organizationId!;
-  const [t, d, c, items, pairs] = await Promise.all([getT(), getDashboard(orgId), getAlertCounts(orgId), getOrgItems(orgId), getMatchPairs(orgId)]);
+  const [t, d, c, items, pairs, feed] = await Promise.all([getT(), getDashboard(orgId), getAlertCounts(orgId), getOrgItems(orgId), getMatchPairs(orgId),
+    getCommunityFeed(orgId, user.id, false)]);
   const openPairs = pairs.filter(p => p.lostStatus < 4 && !p.claimStatus);
 
   const perShelf = new Map<string, number>();
@@ -48,6 +52,7 @@ export default async function OverviewPage() {
   return (
     <>
       <div className="hero dash-hero">
+        <HeroArt sign={t('Lost & Found')} />
         <div className="dash-hero-text">
           <span className="hero-kicker">{t('Overview')}</span>
           <h1>{t(greeting, { name: user.name })}</h1>
@@ -58,7 +63,6 @@ export default async function OverviewPage() {
             <Link className="btn sec" href="/register">{t('Register an item')}</Link>
           </div>
         </div>
-        <Illustration name="office" size={190} className="hero-art" />
       </div>
       <div className="livebar"><span className="livedot" />{t('Live data')} · {t('Updated {time}', { time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tokyo' }) })}</div>
       <div className="grid kpis">
@@ -72,6 +76,8 @@ export default async function OverviewPage() {
         ))}
       </div>
 
+      <CommunityFeed posts={feed} staff />
+
       <h2>{t('Needs attention')}</h2>
       {todo.length ? todo.map((a, i) => (
         <Link key={a.title} href={a.to} className={'box todo' + (a.sev === 'High' ? ' urgent' : '')} style={{ animationDelay: `${0.2 + i * 0.07}s` }}>
@@ -84,7 +90,7 @@ export default async function OverviewPage() {
 
       {openPairs.length > 0 && (
         <>
-          <h2>✨ {t('Suggested matches')} <span className="meta">({openPairs.length})</span></h2>
+          <h2>{t('Suggested matches')} <span className="meta">({openPairs.length})</span></h2>
           <SuggestedMatches pairs={openPairs.slice(0, 3)} t={t} reviewHref="/items?tab=matches" showOwner />
         </>
       )}
