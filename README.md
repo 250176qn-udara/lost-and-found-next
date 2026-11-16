@@ -32,14 +32,14 @@ Demo accounts (password `123456`):
 
 ## Pages
 
-Each menu entry is a hub; its sections are tabs (`?tab=...`) or cards that open when clicked.
+After login the app opens on a start screen (`/start`): the menu as a grid of tiles with the person's profile behind it. Each menu entry is a hub; its sections are tabs (`?tab=...`) or cards that open when clicked.
 Old screen URLs (e.g. `/queue`, `/matches`, `/audit`) redirect to their new place (see `next.config.ts`).
 
 | Role | Menu |
 |---|---|
-| Member | Home · Report an item (5-step wizard) · My items (lost / found / claims, with matches, pickup pass and hand-over inside each card) · Found items (grid or map) · Account (profile, community, privacy & data, how it works) |
-| Staff | Front desk (verify claims / pickups / from finders) · Intake (register / look up by code) · Item list (all items / matches / map) · Storage (shelves / deadlines / closed items) · Account |
-| Org admin | Overview (numbers + to-do) · the staff pages · People (members & roles / staff activity) · Insights (monthly report / hotspots / audit log) · Settings · Account |
+| Member | Report lost item / Report found item (highlighted at the top, both open the 5-step wizard) · Home · My items (lost / found / claims, with matches, pickup pass and hand-over inside each card) · Found items (grid or map) · Account (profile, community, privacy & data, how it works) |
+| Staff | Report lost item / Register found item (highlighted at the top; the latter opens Intake: register / look up by code) · Front desk (verify claims / pickups / from finders) · Item list (lost items / found items / matches / map) · Storage (shelves / deadlines / closed items) · Account |
+| Org admin | Report lost item / Register found item (highlighted at the top) · Overview (numbers + to-do) · the staff pages · People (members & roles / staff activity) · Insights (monthly report / hotspots / audit log) · Settings · Account |
 | Super admin | Platform (organizations / system audit) — no super admin role in the database yet |
 
 The bell in the top bar shows unread notifications (read state is kept in the browser).

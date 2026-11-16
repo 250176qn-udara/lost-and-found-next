@@ -59,9 +59,10 @@ export default async function HomePage() {
           <span className="hero-kicker">{t('Dashboard')}</span>
           <h1>{t('Welcome back, {name}!', { name: user.name.split(' ')[0] })}</h1>
           <p>{t('Lost something, or found something? Report it here. We match found items with lost reports, and the office makes sure every item gets back to its owner safely.')}</p>
-          <div className="btnrow" style={{ marginTop: 0 }}>
-            <Link className="btn" href="/report"><Icon name="search" size={16} />{t('Report lost item')}</Link>
-            <Link className="btn sec" href="/report?kind=found"><Icon name="hand" size={16} />{t('Report found item')}</Link>
+          {/* The two main actions, large enough to find at a glance. */}
+          <div className="btnrow quick" style={{ marginTop: 0 }}>
+            <Link className="btn big" href="/report"><Icon name="search" size={20} />{t('Report lost item')}</Link>
+            <Link className="btn big sec" href="/report?kind=found"><Icon name="hand" size={20} />{t('Report found item')}</Link>
           </div>
           {open.length > 0 && <p className="meta" style={{ margin: '12px 0 0' }}>{open.length === 1 ? t('1 item in progress.') : t('{n} items in progress.', { n: open.length })}</p>}
         </div>

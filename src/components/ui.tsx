@@ -111,3 +111,7 @@ export const KindBadge = ({ kind, t }: { kind: 'lost' | 'found' | null; t: T }) 
 
 /** Short date + time from a MySQL "YYYY-MM-DD HH:MM:SS" string. */
 export const when = (s: string | null) => (s ? s.slice(0, 16) : '—');
+
+/** "Aiko Tanaka" → "AT", ignoring a title like Mr/Ms/Dr. Used for the avatar. */
+export const initialsOf = (name: string) =>
+  name.replace(/^(Mr|Mrs|Ms|Dr)\.?\s+/i, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();

@@ -8,7 +8,7 @@ import { randomInt, randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { handle, maxLen, parseDate, parsePhoto, str, type Result } from '@/lib/action';
-import { ActionError, getSession, loadState, requireAdmin, requireLogin, requireMember, requireStaff, requireSuper, startPath } from '@/lib/auth';
+import { ActionError, getSession, launchPath, loadState, requireAdmin, requireLogin, requireMember, requireStaff, requireSuper, startPath } from '@/lib/auth';
 import { APP_URL, sendMail } from '@/lib/mail';
 import { all, exec, one, transaction } from '@/lib/db';
 import { DEV_DEFAULT_PASSWORD, DEV_LOGIN } from '@/lib/devlogin';
@@ -33,7 +33,7 @@ async function signIn(uid: number) {
   s.lastActivity = now();
   await s.save();
   const me = await loadState(uid);
-  return { to: me ? startPath(me.user) : '/login' };
+  return { to: me ? launchPath(me.user) : '/login' };
 }
 
 // ---------- account ----------

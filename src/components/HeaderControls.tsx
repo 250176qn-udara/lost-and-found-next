@@ -5,12 +5,13 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import type { Lang } from '@/lib/types';
 import { logout, setLang } from '@/app/actions';
 import { useLang, useT } from './Providers';
+import { initialsOf } from './ui';
 
 /** Initials avatar, name and role, and the log-out button (top bar). */
 export function UserPill({ name, role }: { name: string; role: string }) {
   const t = useT();
   const router = useRouter();
-  const initials = name.replace(/^(Mr|Mrs|Ms|Dr)\.?\s+/i, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const initials = initialsOf(name);
   return (
     <div className="roles">
       <div className="user">

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { after } from 'next/server';
 import { runFinderRemindersSoon } from '@/lib/reminders';
 import { requirePage } from '@/lib/auth';
@@ -10,6 +10,7 @@ import { Bell } from '@/components/Bell';
 import { Nav } from '@/components/Nav';
 import { LangButton, UserPill } from '@/components/HeaderControls';
 import { TopSearch } from '@/components/TopSearch';
+import { BagSticker, GlassesSticker, KeysSticker } from '@/components/StartArt';
 
 /** App shell: sidebar (brand, organization, menu) + top bar (bell, language, account). Each page adds its own role checks. */
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -28,7 +29,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <aside className="side">
         <div className="brand"><i></i><span>{t('Lost & Found')}</span></div>
         {org && <div className="org">{t(org.name)}</div>}
-        <Nav role={user.role} />
+        {/* Nav reads the query string (to highlight /report vs /report?kind=found), so Next asks for a Suspense boundary. */}
+        <Suspense fallback={null}><Nav role={user.role} /></Suspense>
+        {/* A few item stickers from the start screen at the bottom of the menu. Decorative only. */}
+        <div className="side-stickers" aria-hidden="true"><GlassesSticker /><BagSticker /><KeysSticker /></div>
       </aside>
       <div className="mainwrap">
         <header className="topbar">

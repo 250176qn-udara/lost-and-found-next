@@ -13,18 +13,20 @@ import { CategoryArt, Icon } from '@/components/Icon';
 import { Empty } from '@/components/Illustration';
 import { LinkManuallyButton, RejectMatchButton } from '@/components/MatchButtons';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
-import { Head, href, KindBadge, LinkChips, placeDate } from '@/components/ui';
+import { Head, href, LinkChips, placeDate } from '@/components/ui';
 
 const FILTERS = ['All', ...STEPS, 'Closed'];
 
-/** Every item in the organization: list, system matches, and map. Click an item for its full history. */
+/** Every item in the organization: lost items, found items, system matches, and map. Click an item for its full history. */
 export default async function ItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string; q?: string; view?: string }> }) {
   const { user } = await requirePage({ roles: ['staff', 'admin'] });
   const orgId = user.organizationId!;
   const [{ tab, f = 'All', q = '', view = 'list' }, t, items, pairs] = await Promise.all([searchParams, getT(), getOrgItems(orgId), getMatchPairs(orgId)]);
+  const lost = items.filter(i => i.kind === 'lost'), found = items.filter(i => i.kind === 'found');
   const tabs: TabDef[] = [
-    { key: 'list', label: 'All items', icon: 'list', count: items.length },
-    { key: 'matches', label: 'Matches', icon: 'search', count: pairs.length },
+    { key: 'lost', label: 'Lost items', icon: 'search', count: lost.length },
+    { key: 'found', label: 'Found items', icon: 'hand', count: found.length },
+    { key: 'matches', label: 'Matches', icon: 'list', count: pairs.length },
     { key: 'map', label: 'Map', icon: 'map' },
   ];
   const cur = pickTab(tabs, tab);
@@ -33,7 +35,8 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
     <>
       <Head title={t('Item list')} sub={t('Every item in your organization. Click one to see its full history.')} />
       <Tabs tabs={tabs} current={cur} base="/items" t={t} />
-      {cur === 'list' && <ItemList items={items} f={f} q={q} view={view === 'photos' ? 'photos' : 'list'} t={t} />}
+      {cur === 'lost' && <ItemList items={lost} kind="lost" f={f} q={q} view={view === 'photos' ? 'photos' : 'list'} t={t} />}
+      {cur === 'found' && <ItemList items={found} kind="found" f={f} q={q} view={view === 'photos' ? 'photos' : 'list'} t={t} />}
       {cur === 'matches' && <Matches orgId={orgId} pairs={pairs} t={t} />}
       {cur === 'map' && <ItemMap items={items} t={t} />}
     </>
@@ -43,8 +46,11 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
 type Items = Awaited<ReturnType<typeof getOrgItems>>;
 type T = Awaited<ReturnType<typeof getT>>;
 
-/** All items as a table, or as photo cards (?view=photos). Filters and search apply to both. */
-function ItemList({ items, f, q, view, t }: { items: Items; f: string; q: string; view: 'list' | 'photos'; t: T }) {
+/** One kind of item (lost or found) as a table, or as photo cards (?view=photos). Filters and search apply to both.
+ *  Lost reports show who reported them; found items show their code and shelf. */
+function ItemList({ items, kind, f, q, view, t }: { items: Items; kind: 'lost' | 'found'; f: string; q: string; view: 'list' | 'photos'; t: T }) {
+  // The lost tab is the first one, so it has no ?tab=; links inside the found tab keep ?tab=found.
+  const tab = kind === 'found' ? 'found' : '';
   const needle = q.trim().toLowerCase();
   const list = items.filter(i =>
     (f === 'All' || statusName(i.status) === f) &&
@@ -55,18 +61,19 @@ function ItemList({ items, f, q, view, t }: { items: Items; f: string; q: string
   ];
   return (
     <>
-      <LinkChips options={FILTERS} current={f} t={t} make={o => href('/items', { f: o === 'All' ? '' : o, q, view: view === 'photos' ? 'photos' : '' })} />
+      <LinkChips options={FILTERS} current={f} t={t} make={o => href('/items', { tab, f: o === 'All' ? '' : o, q, view: view === 'photos' ? 'photos' : '' })} />
       <form className="toolbar">
+        {tab && <input type="hidden" name="tab" value={tab} />}
         {f !== 'All' && <input type="hidden" name="f" value={f} />}
         {view === 'photos' && <input type="hidden" name="view" value="photos" />}
         <input name="q" defaultValue={q} placeholder={t('Search items')} />
         <button className="btn sec">{t('Search')}</button>
         <span className="grow" />
         <div className="seg" style={{ margin: 0 }}>
-          <Link href={href('/items', { f: f === 'All' ? '' : f, q })} className={'segl' + (view === 'list' ? ' on' : '')}><Icon name="list" size={16} />{t('List')}</Link>
-          <Link href={href('/items', { f: f === 'All' ? '' : f, q, view: 'photos' })} className={'segl' + (view === 'photos' ? ' on' : '')}><Icon name="grid" size={16} />{t('Photos')}</Link>
+          <Link href={href('/items', { tab, f: f === 'All' ? '' : f, q })} className={'segl' + (view === 'list' ? ' on' : '')}><Icon name="list" size={16} />{t('List')}</Link>
+          <Link href={href('/items', { tab, f: f === 'All' ? '' : f, q, view: 'photos' })} className={'segl' + (view === 'photos' ? ' on' : '')}><Icon name="grid" size={16} />{t('Photos')}</Link>
         </div>
-        <CsvButton filename="items.csv" rows={csv} />
+        <CsvButton filename={kind + '-items.csv'} rows={csv} />
         <PrintButton />
       </form>
       {view === 'photos' ? (list.length ? (
@@ -79,16 +86,18 @@ function ItemList({ items, f, q, view, t }: { items: Items; f: string; q: string
               <b style={{ color: 'var(--ink)' }}>{i.title}</b>
               <div className="meta">{placeDate(i.place, i.date, t)}</div>
               <div className="pillrow" style={{ marginBottom: 0 }}>
-                <KindBadge kind={i.kind} t={t} />
                 <span className={'badge ' + (i.status === 5 ? 'ok' : i.status === 6 ? 'no' : '')}>{t(statusName(i.status))}</span>
               </div>
-              <div className="meta" style={{ marginTop: 'auto', paddingTop: 8 }}>{i.itemCode ?? '—'}{i.shelf ? ` · ${t('Shelf {shelf}', { shelf: i.shelf })}` : ''} · {i.reporterName}</div>
+              <div className="meta" style={{ marginTop: 'auto', paddingTop: 8 }}>
+                {kind === 'found' ? <>{i.itemCode ?? '—'}{i.shelf ? ` · ${t('Shelf {shelf}', { shelf: i.shelf })}` : ''} · </> : null}{i.reporterName}
+              </div>
             </Link>
           ))}
         </div>
       ) : <Empty art="search" title={t('No items match.')} />) : (
       <table>
-        <thead><tr><th></th><th>{t('Item')}</th><th>{t('Type')}</th><th>{t('Place')}</th><th>{t('Status')}</th><th>{t('Item code')}</th><th>{t('Shelf')}</th></tr></thead>
+        <thead><tr><th></th><th>{t('Item')}</th><th>{t('Place')}</th><th>{t('Status')}</th>
+          {kind === 'found' ? <><th>{t('Item code')}</th><th>{t('Shelf')}</th></> : <th>{t('Reported by')}</th>}</tr></thead>
         <tbody>
           {list.length ? list.map(i => (
             <tr key={i.id}>
@@ -96,13 +105,11 @@ function ItemList({ items, f, q, view, t }: { items: Items; f: string; q: string
                 ? <img src={`/api/items/${i.id}/photo`} alt="" loading="lazy" className="rowthumb" />
                 : <CategoryArt category={i.category} size={36} />}</td>
               <td><Link href={`/items/${i.id}`}>{i.title}</Link><div className="meta">{t(i.category)} · {i.reporterName}</div></td>
-              <td><KindBadge kind={i.kind} t={t} /></td>
               <td>{placeDate(i.place, i.date, t)}</td>
               <td><span className={'badge ' + (i.status === 5 ? 'ok' : i.status === 6 ? 'no' : '')}>{t(statusName(i.status))}</span></td>
-              <td>{i.itemCode ?? '—'}</td>
-              <td>{i.shelf ?? '—'}</td>
+              {kind === 'found' ? <><td>{i.itemCode ?? '—'}</td><td>{i.shelf ?? '—'}</td></> : <td>{i.reporterName}</td>}
             </tr>
-          )) : <tr><td colSpan={7} className="meta">{t('No items match.')}</td></tr>}
+          )) : <tr><td colSpan={6} className="meta">{t('No items match.')}</td></tr>}
         </tbody>
       </table>
       )}

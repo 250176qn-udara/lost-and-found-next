@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
-import { getMe, startPath } from '@/lib/auth';
+import { getMe, launchPath } from '@/lib/auth';
 
 export default async function Index() {
   const me = await getMe();
-  redirect(me ? startPath(me.user) : '/login');
+  redirect(me ? launchPath(me.user) : '/login');
 }

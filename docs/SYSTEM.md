@@ -49,11 +49,16 @@ Restart the app after changing `.env.local`. Never commit `.env.local`.
 
 ## 2. Roles and menus
 
+**Start screen** (`/start`): after login, and whenever the app is opened at `/`, members, staff and admins first see
+their whole menu as a grid of tiles (the two "report" shortcuts first and wide), with their name, role, organization
+and points above it and their initials as a watermark behind it. Any tile opens the normal pages with the sidebar;
+"Skip to …" goes straight to the role's dashboard.
+
 | Role | Menu |
 |---|---|
-| **Member** (student) | Home · Report an item · My items · Found items · Messages · Account · How it works |
-| **Staff** (office) | Front desk · Messages · Intake · Item list · Storage · Account |
-| **Org admin** | Overview · the staff pages · People · Insights · Settings · Account |
+| **Member** (student) | Report lost item / Report found item (highlighted at the top) · Home · My items · Found items · Messages · Account · How it works |
+| **Staff** (office) | Report lost item / Register found item (highlighted at the top; the latter is the Intake page) · Front desk · Messages · Item list · Storage · Account |
+| **Org admin** | Report lost item / Register found item (highlighted at the top) · Overview · the staff pages · People · Insights · Settings · Account |
 | **Super admin** | Platform: all organizations with their admins and numbers, **Add organization**, system audit log |
 
 Pages are hubs: their sections are tabs (`?tab=...`). Old screen URLs redirect to their new place (`next.config.ts`).

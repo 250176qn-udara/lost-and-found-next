@@ -52,7 +52,13 @@ export const getMe = cache(async (): Promise<Me | null> => {
   return loadState(s.uid);
 });
 
-/** First page after login, like startView() in app.js. */
+/** Where the app opens (after login and at "/"): the start screen with the menu grid. People without a community go to Community. */
+export function launchPath(u: User): string {
+  if (u.role === 'super') return '/orgs';
+  return u.membershipStatus === 'approved' ? '/start' : '/community';
+}
+
+/** Each role's main working page (the dashboard behind the start screen), like startView() in app.js. */
 export function startPath(u: User): string {
   if (u.role === 'admin') return '/dash';
   if (u.role === 'staff') return '/desk';
