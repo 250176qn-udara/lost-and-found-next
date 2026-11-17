@@ -8,3 +8,6 @@ next-env.d.ts
 npm-debug.log*
 .DS_Store
 mail-outbox/
+
+# local database backups (contain personal data)
+backups/
