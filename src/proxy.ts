@@ -11,7 +11,15 @@ export async function proxy(req: NextRequest) {
   const session = await getIronSession<SessionData>(req, res, sessionOptions);
   if (!session.uid) return res;
 
+  // The bell checks /api/notices in the background. That is not the person doing something,
+  // so it must not keep the session alive (otherwise an open tab would never log out).
+  const background = req.nextUrl.pathname === '/api/notices';
+
   if (isExpired(session)) {
+    if (background) {
+      session.destroy();
+      return NextResponse.json({ error: 'logged out' }, { status: 401, headers: res.headers });
+    }
     if (req.method !== 'GET' || req.nextUrl.pathname === '/login') {
       session.destroy(); // Server Actions then answer "Your session expired" themselves
       return res;
@@ -21,6 +29,7 @@ export async function proxy(req: NextRequest) {
     return to;
   }
 
+  if (background) return res;
   session.lastActivity = now();
   await session.save();
   return res;

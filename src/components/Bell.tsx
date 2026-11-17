@@ -1,35 +1,50 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { markNoticesRead } from '@/app/actions';
 import type { Notice } from '@/lib/types';
 import { Icon } from './Icon';
 import { useT } from './Providers';
 import { when } from './ui';
 
+const POLL_MS = 30_000;
+
 /** Top-bar bell: the unread count, and a drop-down with the newest notifications (new lost / found posts included).
  *  Clicking one marks it read and opens it. Read state is saved per user (notice_reads).
- *  Polls every 45 seconds so the count stays fresh without a page reload. */
-export function Bell({ notices, unread: initialUnread }: { notices: Notice[]; unread: number }) {
+ *  While the tab is visible it checks /api/notices every 30 s (and when you come back to the tab or open the bell),
+ *  so both the count and the list stay current without reloading the page. */
+export function Bell({ notices: initial, unread: initialUnread }: { notices: Notice[]; unread: number }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [read, setRead] = useState(() => new Set(notices.filter(n => n.read).map(n => n.id)));
+  const [notices, setNotices] = useState(initial);
   const [liveUnread, setLiveUnread] = useState(initialUnread);
+  const [read, setRead] = useState(() => new Set(initial.filter(n => n.read).map(n => n.id)));
   const box = useRef<HTMLDivElement>(null);
-  // New notices arrive with each page load; keep the read set in step with them.
-  useEffect(() => { setRead(new Set(notices.filter(n => n.read).map(n => n.id))); }, [notices]);
-  // Poll every 45s for new notifications count (lightweight: just the count, no full reload).
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const r = await fetch('/api/notices/count');
-        if (r.ok) { const d = await r.json() as { count: number }; setLiveUnread(d.count); }
-      } catch {}
-    };
-    const id = setInterval(poll, 45_000);
-    return () => clearInterval(id);
+
+  // Fresh data from the server (page navigation or a background check) replaces what we show.
+  const apply = useCallback((list: Notice[], count: number) => {
+    setNotices(list);
+    setLiveUnread(count);
+    setRead(new Set(list.filter(n => n.read).map(n => n.id)));
   }, []);
+  useEffect(() => { apply(initial, initialUnread); }, [initial, initialUnread, apply]);
+
+  const check = useCallback(async () => {
+    try {
+      const r = await fetch('/api/notices', { cache: 'no-store' });
+      if (!r.ok) return; // logged out or server busy: keep what we have
+      const d = await r.json() as { count: number; notices: Notice[] };
+      apply(d.notices, d.count);
+    } catch { /* offline: try again next time */ }
+  }, [apply]);
+
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === 'visible') void check(); };
+    const id = setInterval(tick, POLL_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); };
+  }, [check]);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +67,7 @@ export function Bell({ notices, unread: initialUnread }: { notices: Notice[]; un
   return (
     <div className="bellpick" ref={box}>
       <button type="button" className={'bell' + (open ? ' open' : '')} aria-label={label} title={label}
-        aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        aria-haspopup="true" aria-expanded={open} onClick={() => { if (!open) void check(); setOpen(o => !o); }}>
         <Icon name="bell" size={20} />
         {left > 0 && <span className="dotcount">{left > 9 ? '9+' : left}</span>}
       </button>
