@@ -42,16 +42,31 @@
 
 /* ---------- Photo input with preview ---------- */
 .photo-input-wrap{margin-bottom:16px}
-.photo-modes{display:flex;gap:6px;margin-bottom:8px}
-.photo-mode-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--mute);cursor:pointer;font-size:13px;transition:all .15s}
-.photo-mode-btn:hover{border-color:var(--line-strong);color:var(--ink)}
-.photo-mode-btn.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-dk);font-weight:500}
-.photo-label{display:block;cursor:pointer}
 .photo-placeholder{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px;border:2px dashed var(--line-strong);border-radius:12px;background:var(--soft);color:var(--mute);transition:border-color .15s,background .15s}
-.photo-label:hover .photo-placeholder{border-color:var(--brand);background:var(--brand-bg);color:var(--brand)}
 .photo-preview{position:relative;border-radius:12px;overflow:hidden;border:2px solid var(--line)}
 .photo-preview img{width:100%;height:200px;object-fit:cover;display:block}
-.photo-change{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;text-align:center;padding:8px;font-size:13px}
+.photo-placeholder .photopick{justify-content:center}
+.photo-remove{position:absolute;bottom:0;left:0;right:0;border:0;background:rgba(0,0,0,.6);color:#fff;padding:9px;font-size:13.5px;cursor:pointer}
+.photo-remove:hover{background:rgba(185,28,28,.85)}
+/* camera / gallery buttons */
+.photopick{display:flex;gap:8px;flex-wrap:wrap}
+.photopick .btn{gap:7px}
+.photopick.compact .btn{padding:7px 12px;font-size:13.5px}
+/* camera dialog: live view, round shutter button, then preview with Retake / Use photo */
+.modal>div:has(.camdlg){max-width:720px;padding:16px}
+.camdlg-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.camdlg-head b{display:flex;align-items:center;gap:8px;font-size:16px;color:var(--ink)}
+.camdlg-x{border:0;background:none;font-size:26px;line-height:1;color:var(--mute);cursor:pointer;padding:0 6px}
+.camdlg-view{position:relative;background:#0B1120;border-radius:12px;overflow:hidden;aspect-ratio:4/3;display:grid;place-items:center}
+.camdlg-view video,.camdlg-view img{width:100%;height:100%;object-fit:contain;display:block}
+.camdlg-view video.mirror{transform:scaleX(-1)}
+.camdlg-err{position:absolute;inset:0;display:grid;place-content:center;gap:12px;padding:24px;text-align:center;color:#E2E8F0}
+.camdlg-err p{margin:0}
+.camdlg-actions{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:14px;min-height:64px}
+.camdlg-shutter{width:64px;height:64px;border-radius:50%;border:4px solid var(--brand);background:var(--card);display:grid;place-items:center;cursor:pointer;padding:0}
+.camdlg-shutter span{width:46px;height:46px;border-radius:50%;background:var(--grad);transition:transform .12s}
+.camdlg-shutter:active span{transform:scale(.88)}
+.camdlg-shutter:disabled{opacity:.4;cursor:not-allowed}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}

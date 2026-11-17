@@ -12,6 +12,7 @@ import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
 import { useT, useToast } from '@/components/Providers';
 import { Callout, ErrorText, Field, Head, placeDate } from '@/components/ui';
 import { AiPhotoFill } from '@/components/AiPhotoFill';
+import { PhotoPicker } from '@/components/PhotoPicker';
 
 const STEPS = ['Item', 'Where & when'];
 
@@ -117,10 +118,13 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
                 setPhoto(file);
               }} />
             ) : (
-              <Field label={t('Photo') + ' (' + t('Optional') + ')'}><input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} /></Field>
+              <Field label={t('Photo') + ' (' + t('Optional') + ')'}>
+                {preview
+                  ? <div className="photo-preview"><img src={preview} alt={t('Photo preview')} /><button type="button" className="photo-remove" onClick={() => setPhoto(null)}>{t('Remove photo')}</button></div>
+                  : <PhotoPicker onPick={pickPhoto} />}
+              </Field>
             )}
-            {preview && !ai && <img src={preview} alt="" style={{ maxWidth: 220, borderRadius: 12, marginBottom: 12 }} />}
-            <div className="two">
+                        <div className="two">
               <Field label={t('Item name')}><input value={f.title} onChange={set('title')} placeholder={t('e.g. Black wallet')} autoFocus /></Field>
               <Field label={t('Category')}><select value={f.category} onChange={set('category')}>{categories.map(c => <option key={c} value={c}>{t(c)}</option>)}</select></Field>
             </div>

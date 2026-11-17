@@ -21,6 +21,11 @@ const J: Record<string, string> = {
   'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
   'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
   'No organization yet': '組織なし',
+  // photo: camera or gallery
+  'Take photo': '写真を撮る', 'Choose from gallery': 'ギャラリーから選ぶ', 'Remove photo': '写真を削除', 'Retake': '撮り直す', 'Use photo': 'この写真を使う',
+  'Switch camera': 'カメラを切り替え', 'Close': '閉じる', 'Use the phone camera app': 'スマホのカメラアプリを使う',
+  'Optional. Large photos are made smaller automatically.': '任意。大きい写真は自動で小さくします。',
+  'Camera not available. Allow camera access in the browser, or choose a photo from the gallery.': 'カメラを使えません。ブラウザでカメラを許可するか、ギャラリーから写真を選んでください。',
   // forgot password
   'Forgot your password?': 'パスワードを忘れた場合', 'Check your email': 'メールを確認してください',
   'If an account uses {email}, we sent it a link to set a new password. The link works once and expires in 1 hour.':

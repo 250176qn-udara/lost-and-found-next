@@ -5,6 +5,7 @@ import { suggestFromPhoto } from '@/app/actions';
 import { MAX_PHOTO_BYTES } from '@/lib/constants';
 import type { PhotoGuess } from '@/lib/gemini';
 import { Icon } from './Icon';
+import { PhotoPicker } from './PhotoPicker';
 import { useT } from './Providers';
 
 /** "Take a photo and let AI fill in the form" (Gemini). The user checks the suggestion before sending. */
@@ -34,11 +35,9 @@ export function AiPhotoFill({ onResult }: { onResult: (g: PhotoGuess, photo: Fil
           : 'Take or choose a photo of the item. AI suggests the name, category, colour, brand and marks.')}</div>
         {err && <div className="meta" style={{ color: 'var(--red)' }}>{t(err)}</div>}
       </div>
-      <label className={'btn' + (done ? ' sec' : '')} style={{ cursor: busy ? 'wait' : 'pointer' }} aria-disabled={busy}>
-        {t(busy ? 'Reading the photo…' : done ? 'Use another photo' : 'Choose photo')}
-        <input type="file" accept="image/*" capture="environment" hidden disabled={busy}
-          onChange={e => { pick(e.target.files?.[0]); e.target.value = ''; }} />
-      </label>
+      {busy
+        ? <span className="btn sec" aria-busy="true" style={{ cursor: 'wait' }}>{t('Reading the photo…')}</span>
+        : <PhotoPicker onPick={pick} compact />}
     </div>
   );
 }
