@@ -788,7 +788,7 @@ const J: Record<string, string> = {
   // report wizard
   'Colour, brand, marks and the description are private: only staff see them and use them to check the real owner.': '色・ブランド・目印・説明は非公開です。スタッフだけが見て、本当の持ち主の確認に使います。',
   'The more details you give, the easier it is to prove the item is yours.': '詳しく書くほど、自分の物だと証明しやすくなります。',
-  'Private details (only staff see these)': '非公開の特徴（スタッフだけが見られます）', 'e.g. what is inside, a name tag, a scratch': '例：中身、名札、傷など',
+  'Private details (only staff see these)': '非公開の特徴（スタッフだけが見られます）', 'e.g. colour, brand, stickers, what is inside': '例：色、ブランド、シール、中身', 'e.g. what is inside, a name tag, a scratch': '例：中身、名札、傷など',
 
   // overview to-do (count-neutral wording)
   'At the office for a week or more: {n}. Report them to the police.': '1週間以上事務所にある物：{n}件。警察へ届け出てください。',
@@ -858,7 +858,11 @@ const J: Record<string, string> = {
   'Not sure yet? Ask the claimant a question before you decide.': '判断に迷ったら、決める前に申し込んだ人に質問できます。',
   'If the office has a question about your claim, it appears here.': '事務所から申し込みについて質問があると、ここに表示されます。',
   'What colour is it exactly?': '正確には何色ですか？', 'What is inside it?': '中に何が入っていますか？',
-  'Where and when did you lose it?': 'いつ、どこでなくしましたか？', 'Can you describe any marks or stickers?': '目印やステッカーについて教えてください。',
+  'Where and when did you lose it?': 'いつ、どこでなくしましたか？', 'Where did you lose it?': 'どこでなくしましたか？', 'When did you lose it?': 'いつなくしましたか？',
+  'Please say where you lost it.': 'どこでなくしたか書いてください。',
+  'What is something only you would know about it?': 'あなただけが知っていることは何ですか？',
+  'One thing only you would know is enough. Staff check it and you pick the item up with your ID.': 'あなただけが知っていることを1つ書けば大丈夫です。スタッフが確認したら、身分証を持って受け取りに来てください。',
+  'e.g. Library 2F, last Tuesday': '例：図書館2階、先週の火曜日', 'Please say when you lost it.': 'いつなくしたか選んでください。', 'Can you describe any marks or stickers?': '目印やステッカーについて教えてください。',
   'Ask the claimant a question': '申し込んだ人に質問する', 'Write your reply': '返信を書く', 'You': 'あなた',
   'Question sent to the claimant': '申し込んだ人に質問を送りました', 'Reply sent to the office': '事務所に返信しました',
   'Please write a message.': 'メッセージを書いてください。', 'This claim is closed.': 'この申し込みは終了しています。',

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
+import { unpackAnswers } from '@/lib/claims';
 import { CommunityFeed } from '@/components/CommunityFeed';
 import { getCommunityFeed } from '@/lib/community';
 import { getOrgSettings } from '@/lib/settings';
@@ -48,7 +49,14 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           <div className="cols even">
             <div>
               <div className="sec-title">{t('What the claimant says')}</div>
-              <div className="cmp" style={{ display: 'block', margin: 0 }}><div style={{ whiteSpace: 'pre-line' }}>{c.answers}</div></div>
+              {(() => { const a = unpackAnswers(c.answers); return (
+                <div className="cmp" style={{ display: 'block', margin: 0 }}>
+                  <div style={{ whiteSpace: 'pre-line' }}>{a.details}</div>
+                  {/* where and when they say they lost it, beside where and when it was actually found */}
+                  <Kv label={t('Where and when did you lose it?')} value={(a.place || a.date) && <>{[a.place, a.date].filter(Boolean).join(' · ')}
+                    <span className="meta"> ({t('Found')}: {placeDate(c.itemPlace, c.itemDate, t)})</span></>} />
+                </div>
+              ); })()}
               {c.lostDescription && <><div className="sec-title">{t('Their lost report')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{c.lostDescription}</p></>}
               <Kv label={t('Email')} value={c.claimantEmail ?? t('Hidden by the member')} />
             </div>

@@ -57,7 +57,7 @@ and points above it and their initials as a watermark behind it. Any tile opens 
 | Role | Menu |
 |---|---|
 | **Member** (student) | Report lost item / Report found item (highlighted at the top) · Home · My items · Found items · Messages · Account · How it works |
-| **Staff** (office) | Report lost item / Register found item (highlighted at the top; the latter is the Intake page) · Front desk · Messages · Item list · Storage · Account |
+| **Staff** (office) | Report lost item / Register found item (highlighted at the top; the latter is the Intake page) · Front desk · Claims (the claim queue, with the number waiting) · Messages · Item list · Storage · Account |
 | **Org admin** | Report lost item / Register found item (highlighted at the top) · Overview · the staff pages · People · Insights · Settings · Account |
 | **Super admin** | Platform: all organizations with their admins and numbers, **Add organization**, system audit log |
 
@@ -96,7 +96,7 @@ Claim status: pending · approved · rejected · returned.
 ## 4. Features
 
 ### Reporting
-- 5-step wizard: type → item → where & when → photo → review.
+- 2-step form: item (name, category, optional photo and details) → where & when (place, date). Only the name and the place are required; the date starts as today.
 - **Fill in from a photo (AI):** take a photo and Gemini suggests name, category, colour, brand and marks (§6).
 - A found item is listed for the whole community at once, with an item code (`LF-2026-0001`).
 - **Private details:** a found item's colour, brand, marks and description are seen only by staff and the finder.

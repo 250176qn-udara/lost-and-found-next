@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { requirePage } from '@/lib/auth';
+import { unpackAnswers } from '@/lib/claims';
 import { getOrgSettings } from '@/lib/settings';
 import { getPoints, getRanking } from '@/lib/points';
 import { getBadges, getSightings } from '@/lib/community';
@@ -146,7 +147,10 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
           {c.status === 'pending' && (
             <>
               <p style={{ marginTop: 0 }}>{t('Staff are comparing your answers with the details only the owner would know. You will get a notification.')}</p>
-              <div className="sec-title">{t('Your answers')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{c.answers}</p>
+              {(() => { const a = unpackAnswers(c.answers); return (<>
+                <div className="sec-title">{t('Your answers')}</div><p style={{ margin: 0, whiteSpace: 'pre-line' }}>{a.details}</p>
+                <Kv label={t('Where and when did you lose it?')} value={[a.place, a.date].filter(Boolean).join(' · ')} />
+              </>); })()}
             </>
           )}
           {c.status === 'returned' && (

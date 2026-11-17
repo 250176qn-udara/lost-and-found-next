@@ -37,8 +37,8 @@ Old screen URLs (e.g. `/queue`, `/matches`, `/audit`) redirect to their new plac
 
 | Role | Menu |
 |---|---|
-| Member | Report lost item / Report found item (highlighted at the top, both open the 5-step wizard) · Home · My items (lost / found / claims, with matches, pickup pass and hand-over inside each card) · Found items (grid or map) · Account (profile, community, privacy & data, how it works) |
-| Staff | Report lost item / Register found item (highlighted at the top; the latter opens Intake: register / look up by code) · Front desk (verify claims / pickups / from finders) · Item list (lost items / found items / matches / map) · Storage (shelves / deadlines / closed items) · Account |
+| Member | Report lost item / Report found item (highlighted at the top, both open the 2-step form: item, then where and when) · Home · My items (lost / found / claims, with matches, pickup pass and hand-over inside each card) · Found items (grid or map) · Account (profile, community, privacy & data, how it works) |
+| Staff | Report lost item / Register found item (highlighted at the top; the latter opens Intake: register / look up by code) · Front desk (verify claims / pickups / from finders) · Claims (straight to the claim queue, with the number waiting) · Item list (lost items / found items / matches / map) · Storage (shelves / deadlines / closed items) · Account |
 | Org admin | Report lost item / Register found item (highlighted at the top) · Overview (numbers + to-do) · the staff pages · People (members & roles / staff activity) · Insights (monthly report / hotspots / audit log) · Settings · Account |
 | Super admin | Platform (organizations / system audit) — no super admin role in the database yet |
 
