@@ -1,14 +1,14 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { requirePage, startPath } from '@/lib/auth';
-import { NAV, ROLE_NAMES } from '@/lib/constants';
+import { NAV, POSITION, POSITION_ICON } from '@/lib/constants';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
 import { getPoints } from '@/lib/points';
 import { Icon } from '@/components/Icon';
 import { LangButton, UserPill } from '@/components/HeaderControls';
 import { CornerStickers, Doodles, FoundArt, LostArt } from '@/components/StartArt';
-import { initialsOf } from '@/components/ui';
+import { BrandMark } from '@/components/BrandMark';
 
 /** Label of the page a role lands on when it skips the start screen. */
 const START_LABEL = { member: 'Dashboard', staff: 'Front desk', admin: 'Overview', super: 'Platform' } as const;
@@ -28,35 +28,36 @@ export default async function StartPage() {
   ]);
   const hour = Number(new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Tokyo' }));
   const greeting = hour < 11 ? 'Good morning, {name}' : hour < 18 ? 'Good afternoon, {name}' : 'Good evening, {name}';
-  const initials = initialsOf(user.name);
+  // The person is shown by their position (Admin / Staff / Member), not their name.
+  const position = t(POSITION[user.role]);
   // Every menu entry of this role, in sidebar order. The highlighted "report" group comes first and gets wide tiles.
   const tiles = NAV[user.role].flatMap(g => g.links.map(([href, label, icon]) => ({ href, label, icon, group: g.group, cta: !!g.cta })));
 
   return (
     <div className="launch">
       <header className="launch-bar">
-        <div className="brand"><i></i><span>{t('Lost & Found')}</span></div>
+        <div className="brand"><BrandMark /><span>{t('Lost & Found')}</span></div>
         <span className="grow" />
         <LangButton />
-        <UserPill name={user.name} role={t(ROLE_NAMES[user.role])} />
+        <UserPill role={user.role} />
       </header>
 
-      {/* Profile watermark behind the grid, drifting lost-and-found things, and item stickers in the bottom corners.
+      {/* Position watermark behind the grid, drifting lost-and-found things, and item stickers in the bottom corners.
           All decorative: the same facts are in the card below. */}
       <div className="launch-bg" aria-hidden="true">
-        <span className="launch-ava">{initials}</span>
-        <span className="launch-name">{user.name}</span>
+        <span className="launch-ava"><Icon name={POSITION_ICON[user.role]} size={220} /></span>
+        <span className="launch-name">{position}</span>
       </div>
       <Doodles />
       <CornerStickers />
 
       <main className="launch-main">
         <section className="launch-me">
-          <span className="avatar" aria-hidden="true">{initials}</span>
+          <span className="avatar" aria-hidden="true"><Icon name={POSITION_ICON[user.role]} size={30} /></span>
           <div>
-            <h1>{t(greeting, { name: user.name.split(' ')[0] })}</h1>
+            <h1>{t(greeting, { name: position })}</h1>
             <p className="meta">
-              {t(ROLE_NAMES[user.role])}{org && <> · {t(org.name)}</>}
+              {org ? t(org.name) : position}
               {points && <> · {points.total} {t('points')} · {t(points.level.name)}</>}
             </p>
           </div>

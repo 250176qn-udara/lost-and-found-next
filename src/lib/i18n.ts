@@ -18,6 +18,9 @@ const J: Record<string, string> = {
   'Wallet': '財布', 'Bag': 'かばん', 'Electronics': 'その他の電子機器', 'ID card': '学生証・身分証', 'Keys': '鍵', 'Other': 'その他', 'All': 'すべて',
   // community feed on the dashboards
   'Choose a language': '言語を選ぶ',
+  'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
+  'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
+  'Switch to dark mode': 'ダークモードに切り替え', 'Switch to light mode': 'ライトモードに切り替え',
   'New post: someone lost an item': '新しい投稿：落とし物をした人がいます', 'New post: someone found an item': '新しい投稿：見つかった物が届きました',
   'New community posts': 'コミュニティの新しい投稿', 'Someone posted a lost or found item': '誰かが落とし物・拾った物を投稿しました',
   'Community posts': 'みんなの投稿',

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requirePage } from '@/lib/auth';
-import { COLORS, SHELF_CAPACITY } from '@/lib/constants';
+import { COLORS, POSITION, SHELF_CAPACITY } from '@/lib/constants';
 import { atOffice, getMatchPairs, getOrgItems } from '@/lib/data';
 import { SuggestedMatches } from '@/components/Dashboard';
 import { getT } from '@/lib/i18n-server';
@@ -55,7 +55,7 @@ export default async function OverviewPage() {
         <HeroArt sign={t('Lost & Found')} />
         <div className="dash-hero-text">
           <span className="hero-kicker">{t('Overview')}</span>
-          <h1>{t(greeting, { name: user.name })}</h1>
+          <h1>{t(greeting, { name: t(POSITION[user.role]) })}</h1>
           <p>{urgent ? t('{n} urgent things need your attention today.', { n: urgent })
             : todo.length ? t('{n} things are waiting for you today.', { n: todo.length }) : t('Everything is under control today. Nice work!')}</p>
           <div className="btnrow" style={{ marginTop: 0 }}>

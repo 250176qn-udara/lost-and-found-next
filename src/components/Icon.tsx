@@ -79,7 +79,9 @@ const CAT_TINT: Record<string, [bg: string, fg: string]> = {
 export function CategoryArt({ category, size = 44, big = false }: { category: string; size?: number; big?: boolean }) {
   const [bg, fg] = CAT_TINT[category] ?? CAT_TINT.Other;
   return (
-    <span className={'catart' + (big ? ' big' : '')} style={{ background: bg, color: fg, width: big ? '100%' : size, height: big ? undefined : size }}>
+    // Colours go in as CSS variables so dark mode can mix a darker tile from the same hue (see globals.css).
+    <span className={'catart' + (big ? ' big' : '')}
+      style={{ '--cbg': bg, '--cfg': fg, width: big ? '100%' : size, height: big ? undefined : size } as CSSProperties}>
       <Icon name={CAT_ICON[category] ?? 'other'} size={big ? 46 : Math.round(size * 0.5)} />
     </span>
   );

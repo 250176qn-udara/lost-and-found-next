@@ -5,7 +5,7 @@ import { finderJourney, keepUntil, ownerJourney } from '@/lib/journey';
 import { getOrgSettings } from '@/lib/settings';
 import { getPoints, getRanking } from '@/lib/points';
 import { PointsCard, Ranking } from '@/components/Points';
-import { GUIDE_URL } from '@/lib/constants';
+import { GUIDE_URL, POSITION } from '@/lib/constants';
 import { JourneyBar } from '@/components/Journey';
 import { getT } from '@/lib/i18n-server';
 import { getCommunityStats, getItemCounts } from '@/lib/stats';
@@ -57,7 +57,7 @@ export default async function HomePage() {
         <HeroArt sign={t('Lost & Found')} />
         <div className="dash-hero-text">
           <span className="hero-kicker">{t('Dashboard')}</span>
-          <h1>{t('Welcome back, {name}!', { name: user.name.split(' ')[0] })}</h1>
+          <h1>{t('Welcome back, {name}!', { name: t(POSITION[user.role]) })}</h1>
           <p>{t('Lost something, or found something? Report it here. We match found items with lost reports, and the office makes sure every item gets back to its owner safely.')}</p>
           {/* The two main actions, large enough to find at a glance. */}
           <div className="btnrow quick" style={{ marginTop: 0 }}>

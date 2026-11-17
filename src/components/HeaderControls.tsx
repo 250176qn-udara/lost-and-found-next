@@ -2,21 +2,22 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
-import type { Lang } from '@/lib/types';
+import type { Lang, Role } from '@/lib/types';
 import { logout, setLang } from '@/app/actions';
+import { POSITION, POSITION_ICON } from '@/lib/constants';
+import { Icon } from './Icon';
 import { useLang, useT } from './Providers';
-import { initialsOf } from './ui';
 
-/** Initials avatar, name and role, and the log-out button (top bar). */
-export function UserPill({ name, role }: { name: string; role: string }) {
+/** The signed-in person's position (Admin / Staff / Member) with a matching icon, and the log-out button (top bar).
+ *  Names are not shown here, only the position. */
+export function UserPill({ role }: { role: Role }) {
   const t = useT();
   const router = useRouter();
-  const initials = initialsOf(name);
   return (
     <div className="roles">
-      <div className="user">
-        <span className="avatar" aria-hidden="true">{initials}</span>
-        <span className="who"><b>{name}</b><span>{role}</span></span>
+      <div className={'user pos-' + role}>
+        <span className="avatar" aria-hidden="true"><Icon name={POSITION_ICON[role]} size={18} /></span>
+        <span className="who"><b>{t(POSITION[role])}</b></span>
       </div>
       <button className="logout" onClick={async () => { await logout(); router.push('/login'); }}>{t('Log out')}</button>
     </div>

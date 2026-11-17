@@ -2,7 +2,6 @@ import { Suspense, type ReactNode } from 'react';
 import { after } from 'next/server';
 import { runFinderRemindersSoon } from '@/lib/reminders';
 import { requirePage } from '@/lib/auth';
-import { ROLE_NAMES } from '@/lib/constants';
 import { getNotices } from '@/lib/data';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
@@ -12,6 +11,7 @@ import { LangButton, UserPill } from '@/components/HeaderControls';
 import { TopSearch } from '@/components/TopSearch';
 import { BagSticker, GlassesSticker, KeysSticker } from '@/components/StartArt';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { BrandMark } from '@/components/BrandMark';
 
 /** App shell: sidebar (brand, organization, menu) + top bar (bell, language, account). Each page adds its own role checks. */
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
       <aside className="side">
-        <div className="brand"><i></i><span>{t('Lost & Found')}</span></div>
+        <div className="brand"><BrandMark /><span>{t('Lost & Found')}</span></div>
         {org && <div className="org">{t(org.name)}</div>}
         {/* Nav reads the query string (to highlight /report vs /report?kind=found), so Next asks for a Suspense boundary. */}
         <Suspense fallback={null}><Nav role={user.role} /></Suspense>
@@ -44,7 +44,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           {orgId && user.role !== 'super' && <Bell notices={notices.slice(0, 8)} unread={notices.filter(n => !n.read).length} />}
           <ThemeToggle />
           <LangButton />
-          <UserPill name={user.name} role={t(ROLE_NAMES[user.role])} />
+          <UserPill role={user.role} />
         </header>
         <main>{children}</main>
       </div>

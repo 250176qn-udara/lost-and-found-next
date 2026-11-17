@@ -15,6 +15,9 @@ export const ROLE_NAMES: Record<Role, string> = {
   admin: 'Org admin',
   super: 'Super admin',
 };
+/** What the signed-in person is shown as (instead of their name) in the top bar and greetings, and the icon in their avatar. */
+export const POSITION: Record<Role, string> = { member: 'Member', staff: 'Staff', admin: 'Admin', super: 'Super admin' };
+export const POSITION_ICON: Record<Role, string> = { member: 'user', staff: 'desk', admin: 'shield', super: 'gear' };
 
 /** The interactive guide (public/how-it-works.html). */
 export const GUIDE_URL = '/how-it-works.html';
