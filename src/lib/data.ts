@@ -149,14 +149,14 @@ export async function getClaimEvents(itemId: number): Promise<ClaimEvent[]> {
 
 export async function getOrgItems(orgId: number): Promise<OrgItem[]> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT i.id, i.kind, i.title, i.category, i.place, i.lat, i.lng, i.item_date, i.status, i.item_code, i.shelf, i.created_at,
+    `SELECT i.id, i.kind, i.title, i.category, i.place, i.lat, i.lng, i.item_date, i.status, i.item_code, i.shelf, i.created_at, i.description,
             (i.photo IS NOT NULL) AS has_photo, u.name AS reporter_name, IF(i.received_at IS NULL, NULL, DATEDIFF(NOW(), i.received_at)) AS days_kept
      FROM items i JOIN users u ON u.id = i.reporter_id
      WHERE i.organization_id = ? ORDER BY i.id DESC`, [orgId]);
   return rows.map(r => ({
     id: Number(r.id), kind: r.kind as Kind, title: String(r.title), hasPhoto: Boolean(Number(r.has_photo)), category: String(r.category), place: String(r.place),
     date: s(r.item_date), status: Number(r.status) as ItemStatus, itemCode: s(r.item_code), shelf: s(r.shelf),
-    createdAt: String(r.created_at), reporterName: String(r.reporter_name),
+    createdAt: String(r.created_at), reporterName: String(r.reporter_name), description: String(r.description ?? ''),
     daysKept: r.days_kept === null ? null : Number(r.days_kept),
     lat: num(r.lat), lng: num(r.lng),
   }));

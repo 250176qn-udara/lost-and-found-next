@@ -148,6 +148,8 @@ export type OrgItem = {
   shelf: string | null;
   createdAt: string;
   reporterName: string;
+  /** Private details (colour, brand, marks, what is inside). Staff only: used by the staff search. */
+  description: string;
   daysKept: number | null;
   lat: number | null;
   lng: number | null;

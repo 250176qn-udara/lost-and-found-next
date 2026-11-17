@@ -54,7 +54,7 @@ function ItemList({ items, kind, f, q, view, t }: { items: Items; kind: 'lost' |
   const needle = q.trim().toLowerCase();
   const list = items.filter(i =>
     (f === 'All' || statusName(i.status) === f) &&
-    (!needle || `${i.title} ${i.itemCode ?? ''} ${i.place} ${i.reporterName}`.toLowerCase().includes(needle)));
+    (!needle || `${i.title} ${i.itemCode ?? ''} ${i.place} ${i.reporterName} ${i.category} ${t(i.category)} ${i.description}`.toLowerCase().includes(needle)));
   const csv: (string | number)[][] = [
     ['Code', 'Type', 'Item', 'Category', 'Place', 'Date', 'Status', 'Shelf', 'Reported by', 'Reported at'],
     ...list.map(i => [i.itemCode ?? '', i.kind, i.title, i.category, i.place, i.date ?? '', statusName(i.status), i.shelf ?? '', i.reporterName, i.createdAt]),
