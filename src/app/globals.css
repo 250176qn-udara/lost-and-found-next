@@ -1325,6 +1325,10 @@ a.box:hover b,a.kpi:hover .kpi-label{color:var(--brand-dk)}
 @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-10deg) scale(1.08)}75%{transform:rotate(8deg) scale(1.08)}}
 @media(max-width:480px){.launch-grid{grid-template-columns:1fr 1fr;gap:10px}.tile.cta{grid-column:1/-1}.tile-art{height:64px}.launch-bar{padding:12px 16px}.launch-main{padding:6px 16px 40px}.launch-me h1{font-size:22px}}
 
+/* intake (register found item): form + help side by side, stacked on small screens */
+.grid.intake{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);align-items:start}
+@media(max-width:900px){.grid.intake{grid-template-columns:minmax(0,1fr)}}
+
 /* =================== Position badge (top bar) =================== */
 /* The signed-in person is shown by position, not name: an icon avatar coloured per position and the position label. */
 .user .avatar svg{display:block}
@@ -1334,6 +1338,8 @@ a.box:hover b,a.kpi:hover .kpi-label{color:var(--brand-dk)}
 .user.pos-member .avatar{background:linear-gradient(135deg,#4F46E5,#7C3AED)}
 .user.pos-super .avatar{background:linear-gradient(135deg,#334155,#0F172A)}
 .launch-ava svg{width:56%;height:56%}
+/* the position is short, so it stays visible on phones too (the old rule hid the long name there) */
+@media(max-width:900px){.user .who{display:flex}}
 
 /* =================== Dark mode =================== */
 /* Switched by the moon / sun button in the top bar (saved per browser; first visit follows the device setting).

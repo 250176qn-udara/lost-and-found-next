@@ -68,7 +68,7 @@ export function RegisterForm({ queued, afterPath, places, categories, shelves, a
           <div className="meta">{t('It is already listed for the community. Check the details, then add the shelf where it is stored.')}</div>
         </div>
       )}
-      <div className="grid" style={{ gridTemplateColumns: '1.5fr 1fr', alignItems: 'start' }}>
+      <div className="grid intake">
         <form className="box" onSubmit={submit} ref={form}>
           {ai && !queued && <AiPhotoFill onResult={fillFromAi} />}
           <Field label={t('Item name')}><input name="title" placeholder={t('e.g. Green scarf')} defaultValue={queued?.title ?? ''} /></Field>
