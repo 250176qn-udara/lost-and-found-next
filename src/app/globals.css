@@ -1044,6 +1044,8 @@ nav a.cta+a.cta{background:linear-gradient(135deg,#0EA5E9,#14B8A6);box-shadow:0 
 nav a.cta:hover{filter:brightness(1.07);transform:translateY(-1px)}
 nav a.cta.on{color:#fff;box-shadow:inset 0 0 0 2px #fff,0 12px 24px -12px rgba(30,27,75,.55)}
 nav a.cta .nav-lbl{min-width:0}
+nav a .count{margin-left:auto;background:#DB2777;color:#fff;border-radius:99px;font-size:11.5px;font-weight:700;padding:0 7px;line-height:18px;min-width:18px;text-align:center;box-shadow:0 4px 10px -4px rgba(219,39,119,.8)}
+.tile .count{position:absolute;top:12px;right:12px;background:#DB2777;color:#fff;border-radius:99px;font-size:12px;font-weight:700;padding:0 8px;line-height:20px;min-width:20px;text-align:center;box-shadow:0 6px 12px -6px rgba(219,39,119,.9)}
 nav a.cta .nav-art{margin-left:auto;height:44px;width:auto;flex:none;background:none;padding:0;box-shadow:none;border-radius:0;filter:drop-shadow(0 4px 6px rgba(30,27,75,.3))}
 nav a.cta .nav-art .sparkle{transform-box:fill-box;transform-origin:center;animation:twinkle 2.4s ease-in-out infinite}
 .side-stickers{margin-top:auto;display:flex;justify-content:center;align-items:flex-end;padding:0 8px 6px;height:92px;overflow:hidden;pointer-events:none;flex:none}

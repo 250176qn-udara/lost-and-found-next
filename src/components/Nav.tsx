@@ -14,7 +14,8 @@ function parse(href: string): [string, URLSearchParams] {
   return i < 0 ? [href, new URLSearchParams()] : [href.slice(0, i), new URLSearchParams(href.slice(i + 1))];
 }
 
-export function Nav({ role }: { role: Role }) {
+/** badges: a number shown next to a menu entry (by href), e.g. claims waiting for a staff check. */
+export function Nav({ role, badges = {} }: { role: Role; badges?: Record<string, number> }) {
   const t = useT();
   const path = usePathname();
   const search = useSearchParams();
@@ -54,6 +55,7 @@ export function Nav({ role }: { role: Role }) {
                   </Link>
                 : <Link key={href} href={href} className={isOn(href) ? 'on' : ''}>
                     <Icon name={icon} size={18} />{t(label)}
+                    {(badges[href] ?? 0) > 0 && <span className="count">{badges[href]}</span>}
                   </Link>
           ))}
         </div>

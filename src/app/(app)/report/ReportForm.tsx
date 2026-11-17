@@ -10,12 +10,19 @@ import type { T } from '@/lib/i18n';
 import type { Kind, Place } from '@/lib/types';
 import { PlacePicker, type PlaceValue } from '@/components/PlacePicker';
 import { useT, useToast } from '@/components/Providers';
-import { Callout, ErrorText, Field, Head, Kv, placeDate } from '@/components/ui';
+import { Callout, ErrorText, Field, Head, placeDate } from '@/components/ui';
 import { AiPhotoFill } from '@/components/AiPhotoFill';
 
-const STEPS = ['Type', 'Item', 'Where & when', 'Photo', 'Review'];
+const STEPS = ['Item', 'Where & when'];
 
-/** Five-step report wizard. Colour, brand and marks are saved inside the description. */
+/** Today as YYYY-MM-DD in the browser's time zone (the date input's format). */
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+/**
+ * Two-step report form, like other lost-and-found services: what the item is, then where and when.
+ * Only the name and the place are required. Colour, brand, marks and anything else go into one details box
+ * (saved as the description); the date starts as today; the photo is optional and sits on the first step.
+ */
 export function ReportForm({ initialKind, isMember, afterPath, places, categories, keepDays = 5, ai = false }:
   { initialKind: Kind; isMember: boolean; afterPath: string; places: Place[]; categories: string[]; keepDays?: number; ai?: boolean }) {
   const t = useT();
@@ -23,7 +30,7 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [kind, setKind] = useState<Kind>(initialKind);
-  const [f, setF] = useState({ title: '', category: categories[0], colour: '', brand: '', marks: '', date: '', description: '' });
+  const [f, setF] = useState({ title: '', category: categories[0], date: today(), details: '' });
   const [where, setWhere] = useState<PlaceValue>({ place: '', lat: null, lng: null });
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
@@ -42,9 +49,8 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
 
   function next() {
     setErr('');
-    if (step === 2 && !f.title.trim()) return setErr('Please enter the item name.');
-    if (step === 3 && !where.place.trim()) return setErr('Please choose or type the place.');
-    setStep(step + 1);
+    if (!f.title.trim()) return setErr('Please enter the item name.');
+    setStep(2);
   }
 
   function pickPhoto(file: File | undefined) {
@@ -54,9 +60,8 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
   }
 
   function submit() {
-    const description = [
-      f.colour && `${t('Colour')}: ${f.colour}`, f.brand && `${t('Brand')}: ${f.brand}`, f.marks && `${t('Marks or stickers')}: ${f.marks}`, f.description,
-    ].filter(Boolean).join('\n');
+    setErr('');
+    if (!where.place.trim()) return setErr('Please choose or type the place.');
     const fd = new FormData();
     fd.set('kind', kind);
     fd.set('title', f.title);
@@ -65,10 +70,9 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
     fd.set('lat', where.lat === null ? '' : String(where.lat));
     fd.set('lng', where.lng === null ? '' : String(where.lng));
     fd.set('item_date', f.date);
-    fd.set('description', description);
+    fd.set('description', f.details.trim());
     if (kind === 'lost' && askHelp) fd.set('ask_help', '1');
     if (photo) fd.set('photo', photo);
-    setErr('');
     start(async () => {
       const r = await reportItem(fd);
       if (!r.ok) return setErr(r.error);
@@ -98,32 +102,32 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
               <button className={kind === 'lost' ? 'on' : ''} onClick={() => setKind('lost')}>{t('I lost something')}</button>
               <button className={kind === 'found' ? 'on' : ''} onClick={() => setKind('found')}>{t('I found something')}</button>
             </div>
-            {kind === 'found' ? (
+            {kind === 'found' && (
               <Callout kind="teal">
                 <b>{t('It is listed for your community right away')}</b>
-                <div className="meta">{t('Everyone in your community can see it in Found items and the owner can claim it. Keep it safe. Staff check the owner’s ID before it is returned.')}</div>
-                <div className="meta" style={{ marginTop: 6 }}><b>{t('You may keep it for up to {n} days. Then please bring it to the office, even if nobody has claimed it.', { n: keepDays })}</b></div>
+                <div className="meta">{t('You may keep it for up to {n} days. Then please bring it to the office, even if nobody has claimed it.', { n: keepDays })}</div>
                 {!isMember && <div className="meta" style={{ marginTop: 6 }}>{t('If the item is already at the office, use Register found item to add its shelf.')}</div>}
               </Callout>
-            ) : <p className="meta">{t('Tell us what you lost. We will look for it among the found items.')}</p>}
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            {ai && <AiPhotoFill onResult={(g, file) => {
-              setF(x => ({ ...x, title: g.title, category: g.category, colour: g.colour || x.colour, brand: g.brand || x.brand, marks: g.marks || x.marks }));
-              setPhoto(file);
-            }} />}
-            <Field label={t('Item name')}><input value={f.title} onChange={set('title')} placeholder={t('e.g. Black wallet')} autoFocus /></Field>
+            )}
+            {/* With AI, a photo fills in the name, category and details. Without it, the photo is a plain optional field. */}
+            {ai ? (
+              <AiPhotoFill onResult={(g, file) => {
+                const extra = [g.colour && `${t('Colour')}: ${g.colour}`, g.brand && `${t('Brand')}: ${g.brand}`, g.marks && `${t('Marks or stickers')}: ${g.marks}`].filter(Boolean);
+                setF(x => ({ ...x, title: g.title, category: g.category, details: [...extra, x.details].filter(Boolean).join('\n') }));
+                setPhoto(file);
+              }} />
+            ) : (
+              <Field label={t('Photo') + ' (' + t('Optional') + ')'}><input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} /></Field>
+            )}
+            {preview && !ai && <img src={preview} alt="" style={{ maxWidth: 220, borderRadius: 12, marginBottom: 12 }} />}
             <div className="two">
+              <Field label={t('Item name')}><input value={f.title} onChange={set('title')} placeholder={t('e.g. Black wallet')} autoFocus /></Field>
               <Field label={t('Category')}><select value={f.category} onChange={set('category')}>{categories.map(c => <option key={c} value={c}>{t(c)}</option>)}</select></Field>
-              <Field label={t('Colour')}><input value={f.colour} onChange={set('colour')} /></Field>
             </div>
-            <div className="two">
-              <Field label={t('Brand')}><input value={f.brand} onChange={set('brand')} /></Field>
-              <Field label={t('Marks or stickers')}><input value={f.marks} onChange={set('marks')} /></Field>
-            </div>
+            <Field label={t(kind === 'found' ? 'Private details (only staff see these)' : 'Details') + ' (' + t('Optional') + ')'}>
+              <textarea rows={3} value={f.details} onChange={set('details')}
+                placeholder={t(kind === 'found' ? 'e.g. what is inside, a name tag, a scratch' : 'e.g. colour, brand, stickers, what is inside')} />
+            </Field>
             <div className="hidden-note" style={{ marginBottom: 14 }}>
               <div className="meta" style={{ marginBottom: 0 }}>{t(kind === 'found'
                 ? 'Colour, brand, marks and the description are private: only staff see them and use them to check the real owner.'
@@ -132,39 +136,12 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
           </>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <>
             <PlacePicker places={places} value={where} onChange={setWhere} />
             <div className="two" style={{ marginTop: 12 }}>
-              <Field label={t('Date')}><input type="date" value={f.date} onChange={set('date')} /></Field>
+              <Field label={t('Date')}><input type="date" value={f.date} max={today()} onChange={set('date')} /></Field>
             </div>
-          </>
-        )}
-
-        {step === 4 && (
-          <>
-            <Field label={t('Photo')}><input type="file" accept="image/*" onChange={e => pickPhoto(e.target.files?.[0])} /></Field>
-            {preview && <img src={preview} alt="" style={{ maxWidth: 220, borderRadius: 12, marginBottom: 12 }} />}
-            <Field label={t(kind === 'found' ? 'Private details (only staff see these)' : 'Description')}>
-              <textarea rows={3} value={f.description} onChange={set('description')} placeholder={t(kind === 'found' ? 'e.g. what is inside, a name tag, a scratch' : 'Anything else that helps')} />
-            </Field>
-          </>
-        )}
-
-        {step === 5 && (
-          <>
-            <h2 style={{ marginTop: 0 }}>{t('Check your report')}</h2>
-            <Kv label={t('Type')} value={t(kind === 'lost' ? 'Lost' : 'Found')} />
-            <Kv label={t('Item name')} value={f.title} />
-            <Kv label={t('Category')} value={t(f.category)} />
-            <Kv label={t('Colour')} value={f.colour} />
-            <Kv label={t('Brand')} value={f.brand} />
-            <Kv label={t('Marks or stickers')} value={f.marks} />
-            <Kv label={t('Place')} value={t(where.place)} />
-            {where.lat !== null && <Kv label={t('Map pin')} value={`${where.lat.toFixed(5)}, ${where.lng!.toFixed(5)}`} />}
-            <Kv label={t('Date')} value={f.date} />
-            <Kv label={t('Description')} value={f.description} />
-            {photo && <div className="meta">{t('Photo attached')}</div>}
             {kind === 'lost' && (
               <label className="sw askhelp">
                 <span>👀 {t('Ask others to look out for it')}<div className="meta">{t('Students who watch this building get a “Have you seen this?” alert. They see only the name, category, place, date and photo, never your name or details.')}</div></span>
@@ -185,8 +162,8 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
 
         <div style={{ marginTop: 10 }}><ErrorText msg={t(err)} /></div>
         <div className="btnrow">
-          {step > 1 && <button className="btn sec" onClick={() => { setErr(''); setStep(step - 1); }}>{t('Back')}</button>}
-          {step < 5
+          {step > 1 && <button className="btn sec" onClick={() => { setErr(''); setStep(1); }}>{t('Back')}</button>}
+          {step < 2
             ? <button className="btn" onClick={next}>{t('Next')}</button>
             : <button className="btn" disabled={busy} onClick={submit}>{t(busy ? 'Checking…' : 'Submit report')}</button>}
         </div>
@@ -197,23 +174,14 @@ export function ReportForm({ initialKind, isMember, afterPath, places, categorie
   );
 }
 
-/** Help beside the wizard: what to fill in on this step, and what happens after. */
+/** Help beside the form: what to fill in on this step, and what happens after. */
 const TIPS: Record<number, { title: string; lost: string[]; found: string[] }> = {
-  1: { title: 'How reporting works',
-    lost: ['Report it as soon as you notice. Every new found item is compared with your report.', 'You get a notification when there is a possible match.', 'You can follow every step in My items.'],
-    found: ['Thank you for helping! The item is listed for your community right away.', 'Keep it safe until the owner is confirmed, or bring it to the office.', 'Staff check the owner’s ID before anything is returned.'] },
-  2: { title: 'Describe the item',
-    lost: ['Use a short, simple name, e.g. “Black wallet”.', 'Pick the closest category. Matching uses it.', 'Colour, brand and stickers help prove the item is yours.'],
-    found: ['Use a short, simple name, e.g. “Black wallet”.', 'Pick the closest category. Matching uses it.', 'Colour, brand and marks stay private. Staff use them to check the owner.'] },
-  3: { title: 'Where and when',
-    lost: ['Choose the building and room where you last had it.', 'Not sure of the exact place? Pick the nearest one.', 'Use the day you last had it.'],
-    found: ['Choose the building and room where you found it.', 'The place helps the owner recognise the item.', 'Use the day you found it.'] },
-  4: { title: 'Photo and details',
-    lost: ['A photo of the same model helps people recognise it.', 'Write details only the owner would know, like what is inside.'],
-    found: ['A clear photo helps the owner find it quickly.', 'Write what is inside or any name tag in the private details. Only staff see them.'] },
-  5: { title: 'Before you submit',
-    lost: ['Check the name, place and date.', 'After you submit, you can follow your report in My items.', 'When it is found, bring your photo ID to pick it up.'],
-    found: ['Check the name, place and date.', 'After you submit, you can follow the item in My items.', 'If nobody claims it, please bring it to the office in time.'] },
+  1: { title: 'Describe the item',
+    lost: ['Use a short, simple name, e.g. “Black wallet”.', 'Pick the closest category. Matching uses it.', 'Colour, brand and stickers help prove the item is yours.', 'A photo of the same model helps people recognise it.'],
+    found: ['Use a short, simple name, e.g. “Black wallet”.', 'Pick the closest category. Matching uses it.', 'Colour, brand and marks stay private. Staff use them to check the owner.', 'A clear photo helps the owner find it quickly.'] },
+  2: { title: 'Where and when',
+    lost: ['Choose the building and room where you last had it.', 'Not sure of the exact place? Pick the nearest one.', 'Use the day you last had it.', 'After you submit, you can follow your report in My items.'],
+    found: ['Choose the building and room where you found it.', 'The place helps the owner recognise the item.', 'Use the day you found it.', 'If nobody claims it, please bring it to the office in time.'] },
 };
 
 function ReportTips({ step, kind, t }: { step: number; kind: Kind; t: T }) {

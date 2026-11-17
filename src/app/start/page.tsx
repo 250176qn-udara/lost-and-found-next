@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { requirePage, startPath } from '@/lib/auth';
 import { NAV, ROLE_NAMES } from '@/lib/constants';
+import { getClaimsQueue } from '@/lib/data';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
 import { getPoints } from '@/lib/points';
@@ -21,11 +22,15 @@ const START_LABEL = { member: 'Dashboard', staff: 'Front desk', admin: 'Overview
 export default async function StartPage() {
   const { user } = await requirePage({ membership: true });
   const orgId = user.organizationId!;
-  const [t, org, points] = await Promise.all([
+  const office = user.role === 'staff' || user.role === 'admin';
+  const [t, org, points, claims] = await Promise.all([
     getT(),
     one<{ name: string }>('SELECT name FROM organizations WHERE id = ?', [orgId]),
     user.role === 'member' ? getPoints(user.id, orgId) : null,
+    office ? getClaimsQueue(orgId) : [],
   ]);
+  // Shown on the "Claims" tile: how many are waiting for a staff check.
+  const badges: Record<string, number> = { '/desk?tab=verify': claims.filter(c => c.status === 'pending').length };
   const hour = Number(new Date().toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Tokyo' }));
   const greeting = hour < 11 ? 'Good morning, {name}' : hour < 18 ? 'Good afternoon, {name}' : 'Good evening, {name}';
   const initials = initialsOf(user.name);
@@ -70,6 +75,7 @@ export default async function StartPage() {
               <>
                 <span className="tile-ico"><Icon name={x.icon} size={x.cta ? 30 : 26} /></span>
                 <span className="tile-txt"><b>{t(x.label)}</b><small>{t(x.group)}</small></span>
+                {(badges[x.href] ?? 0) > 0 && <span className="count">{badges[x.href]}</span>}
                 {/* the two report tiles carry a picture: a lost wallet under the magnifier, or a found phone with its tag */}
                 {x.cta && (x.href === '/report' ? <LostArt className="tile-art" /> : <FoundArt className="tile-art" />)}
               </>

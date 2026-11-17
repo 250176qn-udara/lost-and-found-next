@@ -17,6 +17,7 @@ import { CARD_DESIGNS, THANKS_REACTIONS } from '@/lib/gifts';
 import { award } from '@/lib/points';
 import { buildingOf } from '@/lib/places';
 import { emailStaff, emailUser, savePrefs } from '@/lib/prefs';
+import { packAnswers, type ClaimAnswers } from '@/lib/claims';
 import { applyMatch, findMatch, type MatchResult } from '@/lib/items';
 import { scoreMatch } from '@/lib/match';
 import { describePhotoWithGemini, geminiReady, imagePart, type PhotoGuess } from '@/lib/gemini';
@@ -392,12 +393,16 @@ export async function scanItem(rawCode: string): Promise<Result<{ item: ScannedI
 
 // ---------- claims ----------
 
-export async function requestClaim(foundItemId: number, rawAnswers: string): Promise<Result> {
+export async function requestClaim(foundItemId: number, input: ClaimAnswers): Promise<Result> {
   return handle(async () => {
     const { uid, orgId } = await requireMember();
-    const answers = rawAnswers.trim();
-    if (!answers) throw new ActionError('Please answer the verification questions.');
-    maxLen(answers, 1000, 'Answer is too long.');
+    // One required answer: something only the owner knows. Where and when they lost it is optional (one free line).
+    const details = String(input.details ?? '').trim(), place = String(input.place ?? '').trim(), date = String(input.date ?? '').trim();
+    if (!details) throw new ActionError('Please answer the verification questions.');
+    maxLen(details, 1000, 'Answer is too long.');
+    maxLen(place, 190, 'Place is too long.');
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)))) throw new ActionError('Please say when you lost it.');
+    const answers = packAnswers({ details, place, date });
     const found = await one<{ id: number; organization_id: number; reporter_id: number; kind: Kind; status: number; matched_item_id: number | null }>(
       'SELECT id, organization_id, reporter_id, kind, status, matched_item_id FROM items WHERE id = ?', [foundItemId]);
     if (!found || found.organization_id !== orgId || found.kind !== 'found') throw new ActionError('Item not found.');

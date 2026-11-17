@@ -3,7 +3,7 @@ import { after } from 'next/server';
 import { runFinderRemindersSoon } from '@/lib/reminders';
 import { requirePage } from '@/lib/auth';
 import { ROLE_NAMES } from '@/lib/constants';
-import { getNotices } from '@/lib/data';
+import { getClaimsQueue, getNotices } from '@/lib/data';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
 import { Bell } from '@/components/Bell';
@@ -19,10 +19,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // Finder reminders (time limit for keeping a found item): checked after the page is sent, at most every 10 minutes.
   after(() => runFinderRemindersSoon());
   const orgId = user.membershipStatus === 'approved' ? user.organizationId : null;
-  const [org, notices] = await Promise.all([
+  const office = !!orgId && (user.role === 'staff' || user.role === 'admin');
+  const [org, notices, claims] = await Promise.all([
     orgId ? one<{ name: string }>('SELECT name FROM organizations WHERE id = ?', [orgId]) : null,
     !orgId || user.role === 'super' ? [] : getNotices(user.id, user.role, orgId),
+    office ? getClaimsQueue(orgId) : [],
   ]);
+  // Shown next to "Claims" in the menu: how many are waiting for a staff check.
+  const badges = { '/desk?tab=verify': claims.filter(c => c.status === 'pending').length };
 
   return (
     <div className="shell">
@@ -30,7 +34,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <div className="brand"><i></i><span>{t('Lost & Found')}</span></div>
         {org && <div className="org">{t(org.name)}</div>}
         {/* Nav reads the query string (to highlight /report vs /report?kind=found), so Next asks for a Suspense boundary. */}
-        <Suspense fallback={null}><Nav role={user.role} /></Suspense>
+        <Suspense fallback={null}><Nav role={user.role} badges={badges} /></Suspense>
         {/* A few item stickers from the start screen at the bottom of the menu. Decorative only. */}
         <div className="side-stickers" aria-hidden="true"><GlassesSticker /><BagSticker /><KeysSticker /></div>
       </aside>

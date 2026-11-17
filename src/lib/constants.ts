@@ -22,7 +22,8 @@ export const GUIDE_URL = '/how-it-works.html';
 /** cta: the group is drawn as highlighted buttons at the top of the menu (the two "report" shortcuts). */
 export type NavGroup = { group: string; links: [href: string, label: string, icon: string][]; cta?: boolean };
 
-/** Sidebar menus. Each entry is a hub page; its sections are tabs or expandable cards inside the page. */
+/** Sidebar menus. Each entry is a hub page; its sections are tabs or expandable cards inside the page.
+ *  "Claims" is a direct link to the Front desk's claim queue; the shell shows the number waiting next to it. */
 export const NAV: Record<Role, NavGroup[]> = {
   member: [
     // The two things a member opens the app for. Highlighted and first, so they are one click away on every page.
@@ -34,13 +35,13 @@ export const NAV: Record<Role, NavGroup[]> = {
   staff: [
     // Same shortcuts for the office: a lost report, or registering an item someone brought in (the Intake page).
     { group: 'Report', cta: true, links: [['/report', 'Report lost item', 'search'], ['/register', 'Register found item', 'inbox']] },
-    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/messages', 'Messages', 'chat'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf'], ['/wall', 'Thank-you wall', 'heart']] },
+    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/desk?tab=verify', 'Claims', 'shield'], ['/messages', 'Messages', 'chat'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf'], ['/wall', 'Thank-you wall', 'heart']] },
     { group: 'Account', links: [['/profile', 'Account', 'user'], [GUIDE_URL, 'How it works', 'other']] },
   ],
   admin: [
     { group: 'Report', cta: true, links: [['/report', 'Report lost item', 'search'], ['/register', 'Register found item', 'inbox']] },
     { group: 'Overview', links: [['/dash', 'Overview', 'chart']] },
-    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/messages', 'Messages', 'chat'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf']] },
+    { group: 'Front desk', links: [['/desk', 'Front desk', 'desk'], ['/desk?tab=verify', 'Claims', 'shield'], ['/messages', 'Messages', 'chat'], ['/items', 'Item list', 'list'], ['/storage', 'Storage', 'shelf']] },
     { group: 'Management', links: [['/users', 'People', 'users'], ['/reports', 'Insights', 'pie'], ['/wall', 'Thank-you wall', 'heart'], ['/settings', 'Settings', 'gear']] },
     { group: 'Account', links: [['/profile', 'Account', 'user'], [GUIDE_URL, 'How it works', 'other']] },
   ],
