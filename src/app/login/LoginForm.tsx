@@ -5,12 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 import { login } from '@/app/actions';
 import { useT } from '@/components/Providers';
+import { Icon } from '@/components/Icon';
+import { POSITION, POSITION_ICON } from '@/lib/constants';
+import type { Role } from '@/lib/types';
 import { ErrorText, Field } from '@/components/ui';
 
-type Account = { name: string; email: string };
+/** A demo account button: shown by position and organization, never by name. n > 0 numbers accounts that share both. */
+export type DevAccount = { email: string; role: Role | null; org: string | null; n: number };
 
 /** devAccounts is set only in development login mode: then a name is enough and there is no password field. */
-export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts: Account[] | null }) {
+export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts: DevAccount[] | null }) {
   const t = useT();
   const router = useRouter();
   const [err, setErr] = useState(notice);
@@ -47,7 +51,7 @@ export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts
           </div>
         )}
         {dev ? (
-          <Field label={t('Name or email')}><input name="email" placeholder={t('e.g. Aiko Tanaka')} autoComplete="username" autoFocus /></Field>
+          <Field label={t('Name or email')}><input name="email" placeholder={t('e.g. you@example.com')} autoComplete="username" autoFocus /></Field>
         ) : (
           <>
             <Field label={t('Email')}><input name="email" type="email" placeholder={t('Enter your email')} autoComplete="email" /></Field>
@@ -60,10 +64,18 @@ export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts
         {dev && devAccounts.length > 0 && (
           <>
             <p className="meta" style={{ margin: '18px 0 8px' }}>{t('Log in as')}</p>
-            <div className="chips" style={{ margin: 0 }}>
-              {devAccounts.map(a => (
-                <button key={a.email} type="button" disabled={busy} title={a.email} onClick={() => signIn(a.email, '')}>{a.name}</button>
-              ))}
+            <div className="devaccts">
+              {devAccounts.map(a => {
+                const position = a.role ? t(POSITION[a.role]) + (a.n ? ` ${a.n}` : '') : t('No organization yet');
+                const org = a.role === 'super' ? t('Whole platform') : a.org ? t(a.org) : '';
+                return (
+                  <button key={a.email} type="button" className={'devacct pos-' + (a.role ?? 'none')} disabled={busy}
+                    title={org ? `${position} · ${org}` : position} onClick={() => signIn(a.email, '')}>
+                    <span className="avatar" aria-hidden="true"><Icon name={a.role ? POSITION_ICON[a.role] : 'user'} size={16} /></span>
+                    <span className="devacct-txt"><b>{position}</b>{org && <small>{org}</small>}</span>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}

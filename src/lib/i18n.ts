@@ -20,6 +20,7 @@ const J: Record<string, string> = {
   'Choose a language': '言語を選ぶ',
   'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
   'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
+  'Whole platform': 'プラットフォーム全体', 'No organization yet': '組織なし',
   // forgot password
   'Forgot your password?': 'パスワードを忘れた場合', 'Check your email': 'メールを確認してください',
   'If an account uses {email}, we sent it a link to set a new password. The link works once and expires in 1 hour.':
@@ -692,7 +693,7 @@ const J: Record<string, string> = {
   'Only open lost reports and unclaimed found items can be linked.': '結び付けられるのは、まだ見つかっていないなくした物の届け出と申し込みのない見つかった物だけです。',
 
   // development login
-  'Development mode': '開発モード', 'Name or email': '名前またはメールアドレス', 'e.g. Aiko Tanaka': '例：Aiko Tanaka', 'Log in as': 'このアカウントでログイン',
+  'Development mode': '開発モード', 'Name or email': '名前またはメールアドレス', 'e.g. you@example.com': '例：you@example.com', 'Log in as': 'このアカウントでログイン',
   'No password needed. Type a name or email, or pick an account below.': 'パスワードは不要です。名前かメールアドレスを入力するか、下からアカウントを選んでください。',
   'Development mode: no password needed. The account gets the password 123456.': '開発モード：パスワードは不要です。アカウントのパスワードは123456になります。',
   'No account with this name or email.': 'この名前またはメールアドレスのアカウントはありません。',
