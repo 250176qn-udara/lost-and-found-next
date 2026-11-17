@@ -9,3 +9,6 @@ export const DEV_LOGIN = process.env.NODE_ENV !== 'production' && process.env.DE
 
 /** Password given to accounts created while DEV_LOGIN is on, so they still work after it is turned off. */
 export const DEV_DEFAULT_PASSWORD = '123456';
+
+/** The organization whose accounts get one-click buttons on the login page (default 1 = the demo college). */
+export const DEV_LOGIN_ORG = Number(process.env.DEV_LOGIN_ORG) || 1;

@@ -20,7 +20,7 @@ const J: Record<string, string> = {
   'Choose a language': '言語を選ぶ',
   'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
   'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
-  'Whole platform': 'プラットフォーム全体', 'No organization yet': '組織なし',
+  'No organization yet': '組織なし',
   // forgot password
   'Forgot your password?': 'パスワードを忘れた場合', 'Check your email': 'メールを確認してください',
   'If an account uses {email}, we sent it a link to set a new password. The link works once and expires in 1 hour.':

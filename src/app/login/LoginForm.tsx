@@ -63,16 +63,16 @@ export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts
         <p style={{ margin: '10px 0 0', textAlign: 'right' }}><Link href="/forgot-password">{t('Forgot your password?')}</Link></p>
         {dev && devAccounts.length > 0 && (
           <>
-            <p className="meta" style={{ margin: '18px 0 8px' }}>{t('Log in as')}</p>
+            {/* All buttons are one organization's accounts, so its name is shown once here. */}
+            <p className="meta" style={{ margin: '18px 0 8px' }}>{t('Log in as')}{devAccounts[0].org && <> · <b>{t(devAccounts[0].org)}</b></>}</p>
             <div className="devaccts">
               {devAccounts.map(a => {
                 const position = a.role ? t(POSITION[a.role]) + (a.n ? ` ${a.n}` : '') : t('No organization yet');
-                const org = a.role === 'super' ? t('Whole platform') : a.org ? t(a.org) : '';
                 return (
                   <button key={a.email} type="button" className={'devacct pos-' + (a.role ?? 'none')} disabled={busy}
-                    title={org ? `${position} · ${org}` : position} onClick={() => signIn(a.email, '')}>
+                    title={position} onClick={() => signIn(a.email, '')}>
                     <span className="avatar" aria-hidden="true"><Icon name={a.role ? POSITION_ICON[a.role] : 'user'} size={16} /></span>
-                    <span className="devacct-txt"><b>{position}</b>{org && <small>{org}</small>}</span>
+                    <span className="devacct-txt"><b>{position}</b></span>
                   </button>
                 );
               })}
