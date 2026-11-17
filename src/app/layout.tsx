@@ -8,6 +8,7 @@ import { Providers } from '@/components/Providers';
 import { LangButton } from '@/components/HeaderControls';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { THEME_INIT } from '@/lib/theme';
+import { ServiceWorker } from '@/components/ServiceWorker';
 import './globals.css';
 import { BrandMark } from '@/components/BrandMark';
 
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   title: 'Lost & Found',
   description: 'Report and find lost items in your community',
   manifest: '/manifest.json',
-  icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  icons: { icon: [{ url: '/icon.svg', type: 'image/svg+xml' }, { url: '/icon-192.png', sizes: '192x192', type: 'image/png' }], apple: '/apple-touch-icon.png' },
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Lost & Found' },
 };
 
@@ -54,6 +55,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           )}
           {children}
         </Providers>
+        <ServiceWorker />
       </body>
     </html>
   );

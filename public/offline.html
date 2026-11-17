@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline · Lost &amp; Found</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+  /* Shown by the service worker (public/sw.js) when a page cannot load because there is no connection. */
+  :root{--bg:#F1EFFB;--card:#fff;--ink:#0F172A;--mute:#475569;--line:#E4E0F7}
+  @media (prefers-color-scheme:dark){:root{--bg:#0B1120;--card:#151C2F;--ink:#F8FAFC;--mute:#A9B6C9;--line:#2A3550}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--bg);color:var(--ink);
+    font:15px/1.6 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic",sans-serif}
+  .card{max-width:420px;width:100%;background:var(--card);border:1px solid var(--line);border-top:4px solid #6366F1;border-radius:16px;padding:28px;text-align:center;
+    box-shadow:0 20px 40px -24px rgba(30,27,75,.45)}
+  img{width:72px;height:72px}
+  h1{font-size:22px;margin:14px 0 6px}
+  p{margin:0 0 6px;color:var(--mute)}
+  .ja{font-size:14px}
+  button{margin-top:18px;border:0;border-radius:10px;padding:11px 22px;font:inherit;font-weight:600;color:#fff;cursor:pointer;
+    background:linear-gradient(120deg,#0284C7,#4F46E5 40%,#9333EA)}
+</style>
+</head>
+<body>
+  <main class="card">
+    <img src="/icon.svg" alt="">
+    <h1>You are offline</h1>
+    <p>Lost &amp; Found needs an internet connection. Check your Wi-Fi or mobile data, then try again.</p>
+    <p class="ja" lang="ja">インターネットに接続されていません。Wi-Fi またはモバイル通信を確認して、もう一度お試しください。</p>
+    <button type="button" onclick="location.reload()">Try again / 再読み込み</button>
+  </main>
+  <script>window.addEventListener('online', () => location.reload());</script>
+</body>
+</html>
