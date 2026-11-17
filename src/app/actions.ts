@@ -4,7 +4,7 @@
 // Next.js checks the Origin header of every Server Action, which replaces the old CSRF token.
 
 import bcrypt from 'bcryptjs';
-import { randomInt, randomBytes } from 'node:crypto';
+import { createHash, randomInt, randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { handle, maxLen, parseDate, parsePhoto, str, type Result } from '@/lib/action';
@@ -52,6 +52,53 @@ export async function login(email: string, password: string): Promise<Result<{ t
     const u = await one<{ id: number; password_hash: string }>('SELECT id, password_hash FROM users WHERE email = ? AND deleted_at IS NULL', [email]);
     if (!u || !(await bcrypt.compare(password, u.password_hash))) throw new ActionError('Invalid email or password.');
     return signIn(u.id);
+  });
+}
+
+// ---------- forgot password ----------
+
+const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
+
+/**
+ * Sends a one-time "set a new password" link (valid 1 hour). The answer is the same whether or not the email
+ * has an account, so nobody can use this form to find out who is registered.
+ * Without a mail server (no SMTP_HOST) in development, the link is also returned so it can be opened directly.
+ */
+export async function requestPasswordReset(email: string): Promise<Result<{ devLink?: string }>> {
+  return handle(async () => {
+    email = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 190) throw new ActionError('Please enter a valid email address.');
+    const u = await one<{ id: number; name: string }>('SELECT id, name FROM users WHERE email = ? AND deleted_at IS NULL', [email]);
+    if (!u) return {};
+    // At most 3 links per hour per account (stops someone flooding a mailbox).
+    const recent = await one<{ n: number }>('SELECT COUNT(*) AS n FROM password_resets WHERE user_id = ? AND created_at > NOW() - INTERVAL 1 HOUR', [u.id]);
+    if (Number(recent?.n ?? 0) >= 3) return {};
+    const token = randomBytes(32).toString('base64url');
+    await exec('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [u.id]); // older links stop working
+    await exec('INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 1 HOUR)', [u.id, tokenHash(token)]);
+    const link = `${APP_URL}/reset-password?token=${token}`;
+    await sendMail(email, 'Lost & Found: set a new password',
+      `Hello ${u.name},\n\nSomeone (hopefully you) asked to reset the password for your Lost & Found account.\n` +
+      `Open this link to choose a new password. It works once and expires in 1 hour:\n\n${link}\n\n` +
+      `If you did not ask for this, you can ignore this email. Your password stays the same.\n`);
+    return process.env.NODE_ENV !== 'production' && !process.env.SMTP_HOST ? { devLink: link } : {};
+  });
+}
+
+/** Sets a new password with a link from requestPasswordReset. The link is used up; the person then logs in. */
+export async function resetPassword(token: string, password: string): Promise<Result> {
+  return handle(async () => {
+    if (password.length < 6) throw new ActionError('Password must be at least 6 characters.');
+    if (Buffer.byteLength(password) > 72) throw new ActionError('Password must be at most 72 characters.');
+    const r = await one<{ id: number; user_id: number }>(
+      `SELECT p.id, p.user_id FROM password_resets p JOIN users u ON u.id = p.user_id
+       WHERE p.token_hash = ? AND p.used_at IS NULL AND p.expires_at > NOW() AND u.deleted_at IS NULL`, [tokenHash(String(token))]);
+    if (!r) throw new ActionError('This link is invalid or has expired. Please ask for a new one.');
+    await transaction(async conn => {
+      await exec('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(password, 10), r.user_id], conn);
+      await exec('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [r.user_id], conn);
+    });
+    return {};
   });
 }
 

@@ -56,6 +56,7 @@ export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts
         )}
         <ErrorText msg={t(err)} />
         <button className="btn" disabled={busy}>{t('Login')}</button>
+        <p style={{ margin: '10px 0 0', textAlign: 'right' }}><Link href="/forgot-password">{t('Forgot your password?')}</Link></p>
         {dev && devAccounts.length > 0 && (
           <>
             <p className="meta" style={{ margin: '18px 0 8px' }}>{t('Log in as')}</p>

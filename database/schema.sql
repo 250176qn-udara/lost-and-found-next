@@ -231,6 +231,19 @@ CREATE TABLE IF NOT EXISTS org_settings (
   CONSTRAINT fk_settings_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- "Forgot password" links. Only a SHA-256 hash of the token is stored; the token itself is only in the email.
+-- A link works once, for 1 hour.
+CREATE TABLE IF NOT EXISTS password_resets (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  token_hash  CHAR(64) NOT NULL UNIQUE,
+  expires_at  DATETIME NOT NULL,
+  used_at     DATETIME NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_resets_user (user_id, created_at),
+  CONSTRAINT fk_resets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Which notifications each user has read (notifications themselves are built from the data).
 CREATE TABLE IF NOT EXISTS notice_reads (
   user_id    INT UNSIGNED NOT NULL,
@@ -314,6 +327,7 @@ CREATE TABLE IF NOT EXISTS wall_claps (
 -- and (created before Gemini matching): ALTER TABLE items ADD COLUMN ai_score TINYINT UNSIGNED NULL, ADD COLUMN ai_reason VARCHAR(300) NULL;
 -- and (created before the super admin): ALTER TABLE users ADD COLUMN is_super TINYINT(1) NOT NULL DEFAULT 0 AFTER deleted_at;
 --   then run the INSERT IGNORE INTO users ... 'super@example.com' line above.
+-- and (created before "Forgot password"): run the CREATE TABLE password_resets block above.
 -- and (created before the finder time limit): ALTER TABLE items ADD COLUMN keep_reminder TINYINT UNSIGNED NOT NULL DEFAULT 0;
 --   ALTER TABLE org_settings ADD COLUMN finder_keep_days TINYINT UNSIGNED NOT NULL DEFAULT 5 AFTER police_days;
 -- and (created before thank-you points): run the CREATE TABLE points block above, then
