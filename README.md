@@ -30,6 +30,15 @@ Demo accounts (password `123456`):
 | yamada@example.com | Org admin (Yokohama Demo School) |
 | harbor@example.com / nexa@example.com | Org admin (other organizations) |
 
+## Checks
+
+```
+npm run typecheck   # TypeScript
+npm test            # tests in tests/ (matching score, claims, places, item journey, every text has Japanese)
+```
+
+The tests need Node.js 22.18 or newer (Node runs the TypeScript test files itself; nothing to install).
+
 ## Pages
 
 After login the app opens on a start screen (`/start`): the menu as a grid of tiles with the person's profile behind it. Each menu entry is a hub; its sections are tabs (`?tab=...`) or cards that open when clicked.
