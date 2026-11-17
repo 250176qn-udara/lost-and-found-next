@@ -17,13 +17,13 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 /** Accounts for the dev login buttons: only the members of one organization (DEV_LOGIN_ORG, default 1 = the demo college),
  *  by position, with a number when two share it (Member 1, Member 2). Other accounts can still log in by typing their email. */
 async function devAccounts(): Promise<DevAccount[]> {
-  const rows = await all<{ email: string; role: Role; org: string }>(
-    `SELECT u.email, m.role, o.name AS org FROM users u
+  const rows = await all<{ id: number; email: string; role: Role; org: string }>(
+    `SELECT u.id, u.email, m.role, o.name AS org FROM users u
      JOIN organization_members m ON m.user_id = u.id AND m.status = 'approved'
      JOIN organizations o ON o.id = m.organization_id
      WHERE u.deleted_at IS NULL AND m.organization_id = ?
      ORDER BY FIELD(m.role, 'admin', 'staff', 'member'), u.id`, [DEV_LOGIN_ORG]);
-  const list = rows.map(r => ({ email: r.email, role: r.role, org: r.org, n: 0 }));
+  const list = rows.map(r => ({ id: Number(r.id), email: r.email, role: r.role, org: r.org, n: 0 }));
   const key = (a: (typeof list)[number]) => `${a.role}|${a.org}`;
   const total = new Map<string, number>();
   for (const a of list) total.set(key(a), (total.get(key(a)) ?? 0) + 1);

@@ -137,11 +137,11 @@ export async function getHotspots(orgId: number) {
   };
 }
 
-export type StaffActivity = { name: string; role: string; received: number; verified: number; returned: number };
+export type StaffActivity = { id: number; name: string; role: string; received: number; verified: number; returned: number };
 
 export async function getStaffActivity(orgId: number): Promise<StaffActivity[]> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT u.name, m.role,
+    `SELECT u.id, u.name, m.role,
             (SELECT COUNT(*) FROM items i WHERE i.received_by = u.id AND i.organization_id = m.organization_id) AS received,
             (SELECT COUNT(*) FROM claims c JOIN items i ON i.id = c.found_item_id
                WHERE c.decided_by = u.id AND i.organization_id = m.organization_id) AS verified,
@@ -150,7 +150,7 @@ export async function getStaffActivity(orgId: number): Promise<StaffActivity[]> 
      FROM organization_members m JOIN users u ON u.id = m.user_id
      WHERE m.organization_id = ? AND m.status = 'approved' AND m.role IN ('staff', 'admin')
      ORDER BY u.name`, [orgId]);
-  return rows.map(r => ({ name: String(r.name), role: String(r.role), received: num(r.received), verified: num(r.verified), returned: num(r.returned) }));
+  return rows.map(r => ({ id: num(r.id), name: String(r.name), role: String(r.role), received: num(r.received), verified: num(r.verified), returned: num(r.returned) }));
 }
 
 /**

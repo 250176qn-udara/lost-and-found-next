@@ -1337,7 +1337,16 @@ a.box:hover b,a.kpi:hover .kpi-label{color:var(--brand-dk)}
 .user.pos-staff .avatar{background:linear-gradient(135deg,#0D9488,#0284C7)}
 .user.pos-member .avatar{background:linear-gradient(135deg,#4F46E5,#7C3AED)}
 .user.pos-super .avatar{background:linear-gradient(135deg,#334155,#0F172A)}
-.launch-ava svg{width:56%;height:56%}
+.launch-ava svg{width:100%;height:100%}
+/* cartoon account pictures: the picture fills the circle; the coloured ring (padding) shows the position */
+.avatar.cartoon{padding:2px;overflow:hidden;background:var(--grad)}
+.avatar.cartoon svg,.chatwho svg{display:block;width:100%;height:100%;border-radius:50%}
+.launch-me .avatar.cartoon{border-radius:50%;padding:3px}
+.launch-me .avatar.cartoon.pos-admin{background:linear-gradient(135deg,#7C3AED,#DB2777)}
+.launch-me .avatar.cartoon.pos-staff{background:linear-gradient(135deg,#0D9488,#0284C7)}
+.launch-me .avatar.cartoon.pos-member{background:linear-gradient(135deg,#4F46E5,#7C3AED)}
+.chatwho.cartoon,.chatwho.office:has(svg),[data-theme="dark"] .chatwho.cartoon,[data-theme="dark"] .chatwho.office:has(svg){background:none;padding:0;overflow:hidden}
+.chatwho .chatwho-mark{border-radius:9px}
 /* the position is short, so it stays visible on phones too (the old rule hid the long name there) */
 @media(max-width:900px){.user .who{display:flex}}
 

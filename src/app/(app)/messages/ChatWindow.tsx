@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { markOfficeRead, sendOfficeMessage } from '@/app/actions';
 import type { OfficeMessage } from '@/lib/data';
+import { BrandMark } from '@/components/BrandMark';
+import { CartoonAvatar } from '@/components/CartoonAvatar';
 import { Icon } from '@/components/Icon';
 import { useT } from '@/components/Providers';
 import { ErrorText } from '@/components/ui';
@@ -13,8 +15,6 @@ const QUICK_STAFF = ['Please bring the item to the office.', 'Your item is ready
 const QUICK_MEMBER = ['When is the office open?', 'I will come to pick it up today.', 'Thank you!'];
 /** How often an open chat checks for new messages. */
 const POLL_MS = 5000;
-/** "AT" from "Aiko Tanaka": the sender's avatar text. */
-const initials = (name: string) => name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
 /** One conversation. memberId = null for the member's own chat with the office. */
 export function ChatWindow({ memberId, messages, viewer, title, meId }: { memberId: number | null; messages: OfficeMessage[]; viewer: 'staff' | 'member'; title: string; meId: number }) {
@@ -73,7 +73,10 @@ export function ChatWindow({ memberId, messages, viewer, title, meId }: { member
             <div key={m.id}>
               {(i === 0 || messages[i - 1].createdAt.slice(0, 10) !== day) && <div className="chatday">{day}</div>}
               <div className={'chatrow' + (mine ? ' me' : '')}>
-                <span className={'chatwho' + (m.fromStaff ? ' office' : '')} aria-hidden="true">{initials(who(m))}</span>
+                {/* Members only ever see "the office", never which staff member wrote: office messages show the logo for them. */}
+                {m.system || !m.senderId || (m.fromStaff && !staff)
+                  ? <span className="chatwho office" aria-hidden="true"><BrandMark size={30} className="chatwho-mark" /></span>
+                  : <span className="chatwho cartoon" aria-hidden="true"><CartoonAvatar seed={m.senderId} size={30} /></span>}
                 <div className={'bubble' + (mine ? ' me' : '')}>
                   {m.body}
                   {m.itemId && <Link href={`/items/${m.itemId}`} className="bubble-link">{t('Open the item')} →</Link>}

@@ -48,7 +48,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           {orgId && user.role !== 'super' && <Bell notices={notices.slice(0, 8)} unread={notices.filter(n => !n.read).length} />}
           <ThemeToggle />
           <LangButton />
-          <UserPill role={user.role} />
+          <UserPill role={user.role} uid={user.id} />
         </header>
         <main>{children}</main>
       </div>

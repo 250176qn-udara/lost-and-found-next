@@ -4,19 +4,20 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { Lang, Role } from '@/lib/types';
 import { logout, setLang } from '@/app/actions';
-import { POSITION, POSITION_ICON } from '@/lib/constants';
+import { POSITION } from '@/lib/constants';
+import { CartoonAvatar } from './CartoonAvatar';
 import { Icon } from './Icon';
 import { useLang, useT } from './Providers';
 
 /** The signed-in person's position (Admin / Staff / Member) with a matching icon, and the log-out button (top bar).
- *  Names are not shown here, only the position. */
-export function UserPill({ role }: { role: Role }) {
+ *  Names are not shown here: a cartoon picture (ring coloured by position) and the position. */
+export function UserPill({ role, uid }: { role: Role; uid: number }) {
   const t = useT();
   const router = useRouter();
   return (
     <div className="roles">
       <div className={'user pos-' + role}>
-        <span className="avatar" aria-hidden="true"><Icon name={POSITION_ICON[role]} size={18} /></span>
+        <span className="avatar cartoon" aria-hidden="true"><CartoonAvatar seed={uid} size={32} /></span>
         <span className="who"><b>{t(POSITION[role])}</b></span>
       </div>
       <button className="logout" onClick={async () => { await logout(); router.push('/login'); }}>{t('Log out')}</button>

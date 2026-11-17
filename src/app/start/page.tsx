@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { requirePage, startPath } from '@/lib/auth';
-import { NAV, POSITION, POSITION_ICON } from '@/lib/constants';
+import { NAV, POSITION } from '@/lib/constants';
 import { getClaimsQueue } from '@/lib/data';
 import { one } from '@/lib/db';
 import { getT } from '@/lib/i18n-server';
@@ -10,6 +10,7 @@ import { Icon } from '@/components/Icon';
 import { LangButton, UserPill } from '@/components/HeaderControls';
 import { CornerStickers, Doodles, FoundArt, LostArt } from '@/components/StartArt';
 import { BrandMark } from '@/components/BrandMark';
+import { CartoonAvatar } from '@/components/CartoonAvatar';
 
 /** Label of the page a role lands on when it skips the start screen. */
 const START_LABEL = { member: 'Dashboard', staff: 'Front desk', admin: 'Overview', super: 'Platform' } as const;
@@ -44,13 +45,13 @@ export default async function StartPage() {
         <div className="brand"><BrandMark /><span>{t('Lost & Found')}</span></div>
         <span className="grow" />
         <LangButton />
-        <UserPill role={user.role} />
+        <UserPill role={user.role} uid={user.id} />
       </header>
 
       {/* Position watermark behind the grid, drifting lost-and-found things, and item stickers in the bottom corners.
           All decorative: the same facts are in the card below. */}
       <div className="launch-bg" aria-hidden="true">
-        <span className="launch-ava"><Icon name={POSITION_ICON[user.role]} size={220} /></span>
+        <span className="launch-ava"><CartoonAvatar seed={user.id} size={260} /></span>
         <span className="launch-name">{position}</span>
       </div>
       <Doodles />
@@ -58,7 +59,7 @@ export default async function StartPage() {
 
       <main className="launch-main">
         <section className="launch-me">
-          <span className="avatar" aria-hidden="true"><Icon name={POSITION_ICON[user.role]} size={30} /></span>
+          <span className={'avatar cartoon pos-' + user.role} aria-hidden="true"><CartoonAvatar seed={user.id} size={58} /></span>
           <div>
             <h1>{t(greeting, { name: position })}</h1>
             <p className="meta">

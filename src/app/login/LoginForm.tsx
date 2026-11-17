@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 import { login } from '@/app/actions';
 import { useT } from '@/components/Providers';
-import { Icon } from '@/components/Icon';
-import { POSITION, POSITION_ICON } from '@/lib/constants';
+import { CartoonAvatar } from '@/components/CartoonAvatar';
+import { POSITION } from '@/lib/constants';
 import type { Role } from '@/lib/types';
 import { ErrorText, Field } from '@/components/ui';
 
 /** A demo account button: shown by position and organization, never by name. n > 0 numbers accounts that share both. */
-export type DevAccount = { email: string; role: Role | null; org: string | null; n: number };
+export type DevAccount = { id: number; email: string; role: Role | null; org: string | null; n: number };
 
 /** devAccounts is set only in development login mode: then a name is enough and there is no password field. */
 export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts: DevAccount[] | null }) {
@@ -71,7 +71,7 @@ export function LoginForm({ notice, devAccounts }: { notice: string; devAccounts
                 return (
                   <button key={a.email} type="button" className={'devacct pos-' + (a.role ?? 'none')} disabled={busy}
                     title={position} onClick={() => signIn(a.email, '')}>
-                    <span className="avatar" aria-hidden="true"><Icon name={a.role ? POSITION_ICON[a.role] : 'user'} size={16} /></span>
+                    <span className="avatar cartoon" aria-hidden="true"><CartoonAvatar seed={a.id} size={34} /></span>
                     <span className="devacct-txt"><b>{position}</b></span>
                   </button>
                 );

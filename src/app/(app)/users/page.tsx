@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icon';
 import { Empty } from '@/components/Illustration';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
 import { Head, Kv, Prog, Timeline, when } from '@/components/ui';
+import { CartoonAvatar } from '@/components/CartoonAvatar';
 import { MembershipButtons } from './MembershipButtons';
 import { RemoveButton, RoleSelect } from './RoleControls';
 
@@ -97,7 +98,7 @@ async function Activity({ orgId, t }: { orgId: number; t: Awaited<ReturnType<typ
         {rows.map(r => (
           <div className="box" key={r.name}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-              <span className="avatar">{r.name.replace(/^(Mr|Mrs|Ms|Dr)\.?\s+/i, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()}</span>
+              <span className="avatar cartoon" aria-hidden="true"><CartoonAvatar seed={r.id} size={34} /></span>
               <div><b>{r.name}</b><div className="meta">{t(ROLE_NAMES[r.role as Role])}</div></div>
             </div>
             <Kv label={t('Items received')} value={r.received} />
