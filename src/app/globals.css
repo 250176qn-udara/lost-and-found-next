@@ -34,6 +34,52 @@
   --shadow:0 1px 2px rgba(15,23,42,.05);
   --shadow-lg:0 10px 30px -12px rgba(15,23,42,.18);
 }
+
+/* =================== Dark Mode =================== */
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ink:#F1F5F9;--text:#CBD5E1;--mute:#94A3B8;--faint:#64748B;
+  --bg:#0F172A;--card:#1E293B;--soft:#172033;--line:#334155;--line2:#1E293B;--line-strong:#475569;
+  --brand:#818CF8;--brand-dk:#A5B4FC;--brand-bg:#1E1B4B;
+  --green:#4ADE80;--greenbg:#052e16;
+  --amber:#FCD34D;--amberbg:#1c1200;
+  --red:#FCA5A5;--redbg:#1a0505;
+  --side:#0F172A;--side-2:rgba(255,255,255,.06);--side-text:#CBD5E1;--side-mute:#6366F1;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+  --shadow-lg:0 10px 30px -12px rgba(0,0,0,.5);
+}}
+:root[data-theme="dark"]{
+  --ink:#F1F5F9;--text:#CBD5E1;--mute:#94A3B8;--faint:#64748B;
+  --bg:#0F172A;--card:#1E293B;--soft:#172033;--line:#334155;--line2:#1E293B;--line-strong:#475569;
+  --brand:#818CF8;--brand-dk:#A5B4FC;--brand-bg:#1E1B4B;
+  --green:#4ADE80;--greenbg:#052e16;
+  --amber:#FCD34D;--amberbg:#1c1200;
+  --red:#FCA5A5;--redbg:#1a0505;
+  --side:#0F172A;--side-2:rgba(255,255,255,.06);--side-text:#CBD5E1;--side-mute:#6366F1;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+  --shadow-lg:0 10px 30px -12px rgba(0,0,0,.5);
+}
+
+/* ---------- Dark mode toggle button ---------- */
+.theme-btn{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--mute);cursor:pointer;transition:color .15s,border-color .15s}
+.theme-btn:hover{color:var(--ink);border-color:var(--line-strong)}
+/* dark mode image adjustments */
+[data-theme="dark"] img:not([src*="photo"]):not([src*="data:"]){opacity:.85}
+[data-theme="dark"] .hero-scene{opacity:.7}
+[data-theme="dark"] html{background:#0F172A}
+
+/* ---------- Photo input with preview ---------- */
+.photo-input-wrap{margin-bottom:16px}
+.photo-modes{display:flex;gap:6px;margin-bottom:8px}
+.photo-mode-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--mute);cursor:pointer;font-size:13px;transition:all .15s}
+.photo-mode-btn:hover{border-color:var(--line-strong);color:var(--ink)}
+.photo-mode-btn.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-dk);font-weight:500}
+.photo-label{display:block;cursor:pointer}
+.photo-placeholder{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px;border:2px dashed var(--line-strong);border-radius:12px;background:var(--soft);color:var(--mute);transition:border-color .15s,background .15s}
+.photo-label:hover .photo-placeholder{border-color:var(--brand);background:var(--brand-bg);color:var(--brand)}
+.photo-preview{position:relative;border-radius:12px;overflow:hidden;border:2px solid var(--line)}
+.photo-preview img{width:100%;height:200px;object-fit:cover;display:block}
+.photo-change{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;text-align:center;padding:8px;font-size:13px}
+
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:14.5px/1.6 var(--font-ui),var(--font-jp),"Hiragino Sans","Yu Gothic",system-ui,sans-serif;-webkit-font-smoothing:antialiased}

@@ -11,6 +11,7 @@ import { Nav } from '@/components/Nav';
 import { LangButton, UserPill } from '@/components/HeaderControls';
 import { TopSearch } from '@/components/TopSearch';
 import { BagSticker, GlassesSticker, KeysSticker } from '@/components/StartArt';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 /** App shell: sidebar (brand, organization, menu) + top bar (bell, language, account). Each page adds its own role checks. */
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -41,6 +42,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             : <TopSearch action="/items" placeholder={t('Search items')} />)}
           <span className="grow" />
           {orgId && user.role !== 'super' && <Bell notices={notices.slice(0, 8)} unread={notices.filter(n => !n.read).length} />}
+          <ThemeToggle />
           <LangButton />
           <UserPill name={user.name} role={t(ROLE_NAMES[user.role])} />
         </header>

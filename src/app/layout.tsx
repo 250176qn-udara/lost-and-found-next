@@ -14,7 +14,14 @@ const jp = Noto_Sans_JP({ subsets: ['latin'], variable: '--font-jp', preload: fa
 // Display face for the "Lost & Found" logo text.
 const display = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['700', '800'], variable: '--font-display' });
 
-export const metadata: Metadata = { title: 'Lost & Found' };
+export const metadata: Metadata = {
+  title: 'Lost & Found',
+  description: 'Report and find lost items in your community',
+  manifest: '/manifest.json',
+  themeColor: '#4F46E5',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Lost & Found' },
+  viewport: { width: 'device-width', initialScale: 1, maximumScale: 1 },
+};
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const lang = await getLang();
@@ -25,6 +32,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang={lang} className={`${ui.variable} ${jp.variable} ${display.variable}`}>
+      {/* Inline script: applies saved theme before first paint so there is no flash */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})()` }} />
+      </head>
       <body>
         <Providers lang={lang}>
           {!me && (

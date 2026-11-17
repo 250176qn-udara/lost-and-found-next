@@ -9,14 +9,27 @@ import { useT } from './Providers';
 import { when } from './ui';
 
 /** Top-bar bell: the unread count, and a drop-down with the newest notifications (new lost / found posts included).
- *  Clicking one marks it read and opens it. Read state is saved per user (notice_reads). */
-export function Bell({ notices, unread }: { notices: Notice[]; unread: number }) {
+ *  Clicking one marks it read and opens it. Read state is saved per user (notice_reads).
+ *  Polls every 45 seconds so the count stays fresh without a page reload. */
+export function Bell({ notices, unread: initialUnread }: { notices: Notice[]; unread: number }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [read, setRead] = useState(() => new Set(notices.filter(n => n.read).map(n => n.id)));
+  const [liveUnread, setLiveUnread] = useState(initialUnread);
   const box = useRef<HTMLDivElement>(null);
   // New notices arrive with each page load; keep the read set in step with them.
   useEffect(() => { setRead(new Set(notices.filter(n => n.read).map(n => n.id))); }, [notices]);
+  // Poll every 45s for new notifications count (lightweight: just the count, no full reload).
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/notices/count');
+        if (r.ok) { const d = await r.json() as { count: number }; setLiveUnread(d.count); }
+      } catch {}
+    };
+    const id = setInterval(poll, 45_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +46,7 @@ export function Bell({ notices, unread }: { notices: Notice[]; unread: number })
     setRead(new Set([...read, ...fresh]));
     void markNoticesRead(fresh);
   };
-  const left = Math.max(0, unread - notices.filter(n => !n.read && read.has(n.id)).length);
+  const left = Math.max(0, liveUnread - notices.filter(n => !n.read && read.has(n.id)).length);
   const label = t('Notifications');
 
   return (
