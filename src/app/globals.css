@@ -1379,6 +1379,20 @@ a.box:hover b,a.kpi:hover .kpi-label{color:var(--brand-dk)}
 .devacct.pos-super .avatar{background:linear-gradient(135deg,#334155,#0F172A)}
 .devacct.pos-none .avatar{background:#94A3B8}
 
+/* =================== Front desk lookup, item code cards =================== */
+.desklookup{margin-bottom:18px;border-top-color:#0EA5E9}
+.desklookup-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px}
+.desklookup-head b{font-size:16px;color:var(--ink)}
+.desklookup-row{display:flex;gap:8px;flex-wrap:wrap}
+.desklookup-row input{flex:1;min-width:220px;font-size:17px;letter-spacing:.04em;padding:10px 14px;border:1px solid var(--line-strong);border-radius:10px;background:var(--card)}
+.desklookup-row input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(99,102,241,.2)}
+.casecode,.showcode{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px dashed var(--line-strong);border-radius:12px;background:var(--soft)}
+.casecode{justify-content:space-between}
+.casecode b,.showcode b{font-family:ui-monospace,Consolas,monospace;font-size:22px;letter-spacing:.06em;color:var(--ink)}
+.showcode{margin:4px 0 14px;background:var(--card)}
+.showcode>div{display:flex;flex-direction:column;gap:4px}
+.showcode .qrsvg{border-radius:8px;flex:none}
+
 /* =================== Item page: the whole case on one screen =================== */
 .casepanel{margin-bottom:20px;border-top-color:#6366F1}
 .casepanel h2{display:flex;align-items:center;gap:8px}

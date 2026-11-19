@@ -25,7 +25,7 @@ function decodeCanvas(canvas: HTMLCanvasElement, src: CanvasImageSource, w: numb
   return jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
 }
 
-export function QrScanner({ onCode }: { onCode: (text: string) => void }) {
+export function QrScanner({ onCode, autoStart = false }: { onCode: (text: string) => void; autoStart?: boolean }) {
   const t = useT();
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -53,6 +53,9 @@ export function QrScanner({ onCode }: { onCode: (text: string) => void }) {
     }
     setOn(true);
   }
+  // Opened from a "Scan QR" button: start the camera right away (one tap less).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (autoStart) void start(); }, []);
 
   // Once the video element is on screen: play the stream and look for a code a few times per second.
   useEffect(() => {

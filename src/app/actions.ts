@@ -455,6 +455,34 @@ export async function receiveAtOffice(itemId: number, shelf: string): Promise<Re
   });
 }
 
+/**
+ * The front desk lookup: what someone at the counter shows or says.
+ * An item code (LF-2026-0148, also read from the QR label or the finder's screen) or the owner's 6-digit pickup code.
+ * Returns the item to open; for a pickup code also the code, so the handover form is already filled in.
+ */
+export async function deskLookup(raw: string): Promise<Result<{ itemId: number; pickupCode?: string }>> {
+  return handle(async () => {
+    const { orgId } = await requireStaff();
+    const text = raw.trim().toUpperCase();
+    if (!text) throw new ActionError('Type the item code or the pickup code.');
+    const item = text.match(/LF-\d{4}-\d{3,}/)?.[0];
+    if (item) {
+      const r = await one<{ id: number }>('SELECT id FROM items WHERE item_code = ? AND organization_id = ?', [item, orgId]);
+      if (!r) throw new ActionError(`No item has the code ${item}. Check it and try again.`);
+      return { itemId: Number(r.id) };
+    }
+    const pin = text.replace(/\D/g, '');
+    if (pin.length === 6) {
+      const r = await one<{ found_item_id: number }>(
+        `SELECT c.found_item_id FROM claims c JOIN items i ON i.id = c.found_item_id
+         WHERE c.pickup_code = ? AND c.status = 'approved' AND i.organization_id = ? ORDER BY c.id DESC LIMIT 1`, [pin, orgId]);
+      if (!r) throw new ActionError('No approved claim has this pickup code. Ask the owner to open their pickup pass.');
+      return { itemId: Number(r.found_item_id), pickupCode: pin };
+    }
+    throw new ActionError('Type an item code like LF-2026-0148, or a 6-digit pickup code.');
+  });
+}
+
 export async function scanItem(rawCode: string): Promise<Result<{ item: ScannedItem }>> {
   return handle(async () => {
     const { orgId } = await requireStaff();

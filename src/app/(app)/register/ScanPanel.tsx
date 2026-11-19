@@ -96,14 +96,14 @@ function ScanCard({ it }: { it: ScannedItem }) {
       </div>
       <Stepper n={Math.min(n, 5)} t={t} />
       <p style={{ margin: '14px 0 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Link className="btn sec" href={`/items/${it.id}`}>{t('Open the item')}</Link>
+        <Link className="btn" href={`/items/${it.id}#case`}>{t(it.kind === 'found' && !it.receivedAt && n < 5 ? 'Receive it at the office' : 'Open the whole case')}</Link>
         <Link className="btn sec" href={`/label/${it.id}?then=/register?tab=lookup`}>{t('Print label')}</Link>
       </p>
       {it.pickupReady && (
         <div className="hidden-note" style={{ marginTop: 14 }}>
           <b>{t('The owner is approved and can pick this up.')}</b>
           <div className="meta">{t('Check their photo ID and pickup code at the handover.')}</div>
-          <p style={{ margin: '8px 0 0' }}><Link className="btn" href="/desk?tab=pickups">{t('Go to handover')}</Link></p>
+          <p style={{ margin: '8px 0 0' }}><Link className="btn" href={`/items/${it.id}#case`}>{t('Go to handover')}</Link></p>
         </div>
       )}
       {n < 3 && <p style={{ margin: '14px 0 0' }} className="meta">{t('No claims yet.')}</p>}

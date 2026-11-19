@@ -20,9 +20,11 @@ import { mapsLink } from '@/lib/geo';
 import { Callout, Head, KindBadge, Kv, placeDate, Timeline } from '@/components/ui';
 import { CasePanel } from './CasePanel';
 
-export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ItemPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ code?: string }> }) {
   const { user } = await requirePage({ membership: true });
   const { id } = await params;
+  // From the desk lookup: the pickup code the owner gave, to fill in the handover form.
+  const pickupCode = ((await searchParams).code ?? '').replace(/\D/g, '').slice(0, 6);
   const it = await getItemDetail(Number(id) || 0, user.organizationId!);
   const isStaff = user.role === 'staff' || user.role === 'admin';
   const isMine = !!it && it.reporterId === user.id;
@@ -72,7 +74,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     <>
       <Head title={it.title} sub={t('Item details')} />
       {/* Staff: every step of this found item, and the controls for the next one, on this one screen. */}
-      {isStaff && it.kind === 'found' && <CasePanel it={it} orgId={user.organizationId!} shelves={shelves} idTypes={idTypes} t={t} />}
+      {isStaff && it.kind === 'found' && <CasePanel it={it} orgId={user.organizationId!} shelves={shelves} idTypes={idTypes} pickupCode={pickupCode} t={t} />}
       <div className="cols">
         <div>
           <div className="box" style={{ marginBottom: 16 }}>
@@ -142,6 +144,12 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
                     {t(openClaim ? 'Please take it to the office. Staff check the owner’s ID there and return it.' : 'When you can, hand it to the office so the owner can collect it there.')}
                   </div>
                   {keep && <KeepLimit due={keep} keepDays={keepDays} t={t} />}
+                  {it.itemCode && (
+                    <div className="showcode">
+                      <QrCode text={it.itemCode} size={104} />
+                      <div><span className="meta">{t('At the office, show this screen or tell the code')}</span><b>{it.itemCode}</b></div>
+                    </div>
+                  )}
                   <HandToOfficeButton itemId={it.id} itemCode={it.itemCode} />
                 </>
               )}

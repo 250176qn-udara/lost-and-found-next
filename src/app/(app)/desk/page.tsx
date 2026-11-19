@@ -7,6 +7,7 @@ import { getOrgSettings } from '@/lib/settings';
 import { getClaimMessages, getClaimsQueue, getFinderMessages, getQueue } from '@/lib/data';
 import { ClaimChat } from '@/components/ClaimChat';
 import { FinderChat } from '@/components/FinderChat';
+import { DeskLookup } from '@/components/DeskLookup';
 import { getT } from '@/lib/i18n-server';
 import { Expandable } from '@/components/Expandable';
 import { Icon } from '@/components/Icon';
@@ -42,6 +43,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   return (
     <>
       <Head title={t('Front desk')} sub={t('Check owners, hand items over, and take in items people bring.')} />
+      <DeskLookup />
       <Tabs tabs={tabs} current={cur} base="/desk" t={t} />
 
       {cur === 'verify' && (pending.length ? pending.map((c, n) => (

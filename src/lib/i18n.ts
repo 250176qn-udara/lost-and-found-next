@@ -21,6 +21,17 @@ const J: Record<string, string> = {
   'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
   'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
   'No organization yet': '組織なし',
+  // front desk lookup and item codes
+  'Someone at the desk?': '受付に人が来ましたか？',
+  'Type or scan the item code (finder) or the 6-digit pickup code (owner). The item opens at the step to do now.': 'アイテムコード（拾い主）か6桁の受け取りコード（持ち主）を入力またはスキャンしてください。今やるべきステップで開きます。',
+  'LF-2026-0148 or 123456': 'LF-2026-0148 または 123456', 'Item code or pickup code': 'アイテムコードまたは受け取りコード',
+  'Looking…': '検索中…', 'Stop scanning': 'スキャンをやめる', 'Scan QR': 'QRをスキャン',
+  'Type the item code or the pickup code.': 'アイテムコードか受け取りコードを入力してください。',
+  'No approved claim has this pickup code. Ask the owner to open their pickup pass.': 'この受け取りコードの承認済み請求はありません。持ち主に受け取り証を開いてもらってください。',
+  'Type an item code like LF-2026-0148, or a 6-digit pickup code.': 'LF-2026-0148 のようなアイテムコードか、6桁の受け取りコードを入力してください。',
+  'Item code (the finder can show it in the app)': 'アイテムコード（拾い主はアプリで見せられます）',
+  'At the office, show this screen or tell the code': '事務所でこの画面を見せるか、コードを伝えてください',
+  'Receive it at the office': '事務所で受け取る',
   // item page: the whole case on one screen
   'What to do with this item': 'この物の対応', 'Open the whole case': 'この物の対応をすべて見る', 'Item at the office': '事務所に届いている',
   'Received {time} · shelf {shelf}': '受付 {time}・棚 {shelf}', 'The finder says they brought it ({time}).': '拾い主は届けたと言っています（{time}）。',

@@ -25,10 +25,10 @@ export function DecideButtons({ id }: { id: number }) {
 const CHECKS = ['Photo ID matches the owner', 'Answers match the item'];
 
 /** Handover at the desk: pickup code + ID check. */
-export function HandoverForm({ id, hasCode, ready, itemId, idTypes }: { id: number; hasCode: boolean; ready: boolean; itemId?: number; idTypes: string[] }) {
+export function HandoverForm({ id, hasCode, ready, itemId, idTypes, initialCode = '' }: { id: number; hasCode: boolean; ready: boolean; itemId?: number; idTypes: string[]; initialCode?: string }) {
   const t = useT();
   const toast = useToast();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode);
   const [done, setDone] = useState(CHECKS.map(() => false));
   const [idType, setIdType] = useState(idTypes[0]);
   const [err, setErr] = useState('');

@@ -29,7 +29,7 @@ function Step({ n, state, title, sub, children }: { n: number; state: StepState;
  * Staff, found item: the whole case on one screen. Every step in order (done / now / later), and the controls for the
  * current step right here: confirm it reached the office (shelf), message the finder, verify claims, hand it over.
  */
-export async function CasePanel({ it, orgId, shelves, idTypes, t }: { it: ItemDetail; orgId: number; shelves: string[]; idTypes: string[]; t: T }) {
+export async function CasePanel({ it, orgId, shelves, idTypes, pickupCode = '', t }: { it: ItemDetail; orgId: number; shelves: string[]; idTypes: string[]; pickupCode?: string; t: T }) {
   const claims = (await getClaimsQueue(orgId)).filter(c => c.foundItemId === it.id);
   const pending = claims.filter(c => c.status === 'pending');
   const approved = claims.find(c => c.status === 'approved') ?? null;
@@ -52,6 +52,9 @@ export async function CasePanel({ it, orgId, shelves, idTypes, t }: { it: ItemDe
       <Step n={1} state={s1} title={t('Item at the office')}
         sub={atOffice ? t('Received {time} · shelf {shelf}', { time: when(it.receivedAt), shelf: it.shelf ?? '—' })
           : it.handedInAt ? t('The finder says they brought it ({time}).', { time: when(it.handedInAt) }) : t('The finder still has it.')}>
+        {it.itemCode && (
+          <div className="casecode"><span className="meta">{t('Item code (the finder can show it in the app)')}</span><b>{it.itemCode}</b></div>
+        )}
         <ReceiveHere itemId={it.id} shelves={shelves} handedIn={!!it.handedInAt} />
         {memberFinder && (
           <FinderChat itemId={it.id} finderName={it.reporterName} handedIn={!!it.handedInAt} claimed={claims.length > 0}
@@ -97,7 +100,7 @@ export async function CasePanel({ it, orgId, shelves, idTypes, t }: { it: ItemDe
           : approved ? t('The owner was told to come with the pickup code and a photo ID.') : t('After the owner is approved.')}>
         {approved && (
           <>
-            <HandoverForm id={approved.id} hasCode ready={atOffice} itemId={it.id} idTypes={idTypes} />
+            <HandoverForm id={approved.id} hasCode ready={atOffice} itemId={it.id} idTypes={idTypes} initialCode={pickupCode} />
             <ClaimChat claimId={approved.id} messages={msgs[approved.id] ?? []} viewer="staff" open messagesHref={`/messages?with=${approved.claimantId}`} />
           </>
         )}
