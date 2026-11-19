@@ -154,6 +154,10 @@ export type OrgItem = {
   reporterName: string;
   /** Private details (colour, brand, marks, what is inside). Staff only: used by the staff search. */
   description: string;
+  /** For the staff "next step": the linked item, whether the finder says they brought it, and the open claim. */
+  matchedItemId: number | null;
+  handedIn: boolean;
+  openClaim: 'pending' | 'approved' | null;
   daysKept: number | null;
   lat: number | null;
   lng: number | null;

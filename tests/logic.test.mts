@@ -48,3 +48,15 @@ test('translate: Japanese text, placeholders, English fallback', () => {
   assert.equal(translate('en', 'Hello {name}', { name: 'Aiko' }), 'Hello Aiko');
   assert.equal(translate('ja', 'A sentence nobody translated'), 'A sentence nobody translated');
 });
+
+test('item list next step: staff turn first, and where to do it', async () => {
+  const { staffNextShort } = await import('../src/lib/journey');
+  const base = { id: 7, kind: 'found' as const, status: 2, daysKept: null, handedIn: false, openClaim: null, matchedItemId: null };
+  assert.deepEqual(staffNextShort({ ...base, handedIn: true }), { text: 'Confirm it is at the office', you: true, href: '/items/7#case' });
+  assert.equal(staffNextShort({ ...base, openClaim: 'pending' }).you, true);
+  assert.equal(staffNextShort({ ...base, openClaim: 'approved' }).text, 'Waiting for the finder');
+  assert.equal(staffNextShort({ ...base, openClaim: 'approved', daysKept: 1 }).text, 'Hand it over when the owner comes');
+  assert.equal(staffNextShort({ ...base, status: 5 }).text, 'Returned');
+  // a lost report: the work is on the found item it is linked to
+  assert.equal(staffNextShort({ ...base, kind: 'lost', openClaim: 'pending', matchedItemId: 9 }).href, '/items/9#case');
+});

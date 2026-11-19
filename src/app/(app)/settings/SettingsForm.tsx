@@ -10,7 +10,7 @@ import { ErrorText, Head } from '@/components/ui';
 
 const TABS = ['General', 'Categories', 'Places & shelves', 'ID types'];
 
-export type SettingsValues = { storageDays: number; policeDays: number; keepDays: number; hideSensitive: boolean; categories: string[]; shelves: string[]; idTypes: string[] };
+export type SettingsValues = { storageDays: number; policeDays: number; keepDays: number; hideSensitive: boolean; officePlace: string; officeHours: string; categories: string[]; shelves: string[]; idTypes: string[] };
 
 export function SettingsForm({ places, settings, initialTab }: { places: Place[]; settings: SettingsValues; initialTab?: string }) {
   const t = useT();
@@ -44,12 +44,15 @@ function General({ settings }: { settings: SettingsValues }) {
   const [policeDays, setPolice] = useState(settings.policeDays);
   const [hideSensitive, setHide] = useState(settings.hideSensitive);
   const [keepDays, setKeep] = useState(settings.keepDays);
+  const [officePlace, setPlace] = useState(settings.officePlace);
+  const [officeHours, setHours] = useState(settings.officeHours);
   const [err, setErr] = useState('');
   const [busy, start] = useTransition();
-  const changed = storageDays !== settings.storageDays || policeDays !== settings.policeDays || keepDays !== settings.keepDays || hideSensitive !== settings.hideSensitive;
+  const changed = storageDays !== settings.storageDays || policeDays !== settings.policeDays || keepDays !== settings.keepDays || hideSensitive !== settings.hideSensitive
+    || officePlace !== settings.officePlace || officeHours !== settings.officeHours;
   const save = () => start(async () => {
     setErr('');
-    const r = await saveGeneralSettings({ storageDays, policeDays, keepDays, hideSensitive });
+    const r = await saveGeneralSettings({ storageDays, policeDays, keepDays, hideSensitive, officePlace, officeHours });
     if (!r.ok) return setErr(r.error);
     toast('Settings saved');
   });
@@ -57,6 +60,12 @@ function General({ settings }: { settings: SettingsValues }) {
 
   return (
     <div className="box" style={{ maxWidth: 640 }}>
+      {/* Shown to owners on the pickup pass and to finders when they bring an item in. */}
+      <div className="field"><label>{t('Office location')}</label>
+        <input value={officePlace} maxLength={150} onChange={e => setPlace(e.target.value)} placeholder={t('e.g. Bldg A · 1F Student office (reception)')} /></div>
+      <div className="field"><label>{t('Opening hours')}</label>
+        <input value={officeHours} maxLength={150} onChange={e => setHours(e.target.value)} placeholder={t('e.g. Mon–Fri 9:00–17:00')} />
+        <div className="meta" style={{ marginTop: 6 }}>{t('Owners see this on their pickup pass, finders when they bring an item.')}</div></div>
       <div className="sw">
         <span>{t('Storage period')}<div className="meta">{t('Days before unclaimed items expire')}</div></span>
         <select value={storageDays} onChange={e => setStorage(Number(e.target.value))}>

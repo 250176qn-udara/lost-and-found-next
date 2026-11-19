@@ -32,7 +32,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
   const visible = it && (isStaff || isMine || (it.kind === 'found' && it.status >= 2 && it.status < 5));
   if (!visible) notFound();
 
-  const [t, claims, { policeDays, keepDays, shelves, idTypes }, places] = await Promise.all([getT(), getClaimEvents(it.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!)]);
+  const [t, claims, { policeDays, keepDays, shelves, idTypes, officePlace, officeHours }, places] = await Promise.all([getT(), getClaimEvents(it.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!)]);
   // Members see claims only on their own reports: their own claims (lost report), or that someone claimed the item
   // they found (found item). Names and answers stay hidden from members (showNames below is staff only).
   const shownClaims = isStaff || isMine ? claims : [];
@@ -147,7 +147,8 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
                   {it.itemCode && (
                     <div className="showcode">
                       <QrCode text={it.itemCode} size={104} />
-                      <div><span className="meta">{t('At the office, show this screen or tell the code')}</span><b>{it.itemCode}</b></div>
+                      <div><span className="meta">{t('At the office, show this screen or tell the code')}</span><b>{it.itemCode}</b>
+                        {(officePlace || officeHours) && <span className="meta">{officePlace && <>📍 {officePlace} </>}{officeHours && <>🕘 {officeHours}</>}</span>}</div>
                     </div>
                   )}
                   <HandToOfficeButton itemId={it.id} itemCode={it.itemCode} />

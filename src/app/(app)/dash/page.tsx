@@ -56,8 +56,9 @@ export default async function OverviewPage() {
         <div className="dash-hero-text">
           <span className="hero-kicker">{t('Overview')}</span>
           <h1>{t(greeting, { name: t(POSITION[user.role]) })}</h1>
-          <p>{urgent ? t('{n} urgent things need your attention today.', { n: urgent })
-            : todo.length ? t('{n} things are waiting for you today.', { n: todo.length }) : t('Everything is under control today. Nice work!')}</p>
+          <p>{urgent ? (urgent === 1 ? t('1 urgent thing needs your attention today.') : t('{n} urgent things need your attention today.', { n: urgent }))
+            : todo.length ? (todo.length === 1 ? t('1 thing is waiting for you today.') : t('{n} things are waiting for you today.', { n: todo.length }))
+            : t('Everything is under control today. Nice work!')}</p>
           <div className="btnrow" style={{ marginTop: 0 }}>
             <Link className="btn" href="/desk">{t('Open the front desk')}</Link>
             <Link className="btn sec" href="/register">{t('Register an item')}</Link>

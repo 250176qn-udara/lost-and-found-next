@@ -225,10 +225,13 @@ async function tellOwnerItArrived(itemId: number) {
     `SELECT c.claimant_id, i.title, i.shelf, i.item_code, c.pickup_code FROM claims c JOIN items i ON i.id = c.found_item_id
      WHERE c.found_item_id = ? AND c.status = 'approved' ORDER BY c.id DESC LIMIT 1`, [itemId]);
   if (!c) return;
+  const org = await one<{ organization_id: number }>('SELECT organization_id FROM items WHERE id = ?', [itemId]);
+  const { officePlace, officeHours } = await getOrgSettings(org!.organization_id);
+  const where = [officePlace, officeHours].filter(Boolean).join(' · ');
   await emailUser(c.claimant_id, 'claims', {
     subject: ['お探しの物が事務所に届きました', 'Your item is at the office'],
-    ja: [`「${c.title}」が事務所に届きました。受け取りコード（${c.pickup_code ?? '—'}）と写真付きの身分証を持って、事務所（受付）にお越しください。`],
-    en: [`Your "${c.title}" is now at the office. Come to the office (reception) with your pickup code (${c.pickup_code ?? '—'}) and a photo ID.`],
+    ja: [`「${c.title}」が事務所に届きました。受け取りコード（${c.pickup_code ?? '—'}）と写真付きの身分証を持って、事務所（受付）にお越しください。`, ...(where ? [where] : [])],
+    en: [`Your "${c.title}" is now at the office. Come to the office (reception) with your pickup code (${c.pickup_code ?? '—'}) and a photo ID.`, ...(where ? [where] : [])],
     path: '/my-items?tab=claims',
   });
 }
@@ -469,7 +472,9 @@ export async function deskLookup(raw: string): Promise<Result<{ itemId: number; 
     if (item) {
       const r = await one<{ id: number }>('SELECT id FROM items WHERE item_code = ? AND organization_id = ?', [item, orgId]);
       if (!r) throw new ActionError(`No item has the code ${item}. Check it and try again.`);
-      return { itemId: Number(r.id) };
+      // The owner's pickup pass QR holds the item code and the pickup code: fill the code in for the handover.
+      const pass = text.replace(item, '').match(/\b\d{6}\b/)?.[0];
+      return pass ? { itemId: Number(r.id), pickupCode: pass } : { itemId: Number(r.id) };
     }
     const pin = text.replace(/\D/g, '');
     if (pin.length === 6) {
@@ -523,17 +528,30 @@ export async function requestClaim(foundItemId: number, input: ClaimAnswers): Pr
     maxLen(place, 190, 'Place is too long.');
     if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)))) throw new ActionError('Please say when you lost it.');
     const answers = packAnswers({ details, place, date });
-    const found = await one<{ id: number; organization_id: number; reporter_id: number; kind: Kind; status: number; matched_item_id: number | null }>(
-      'SELECT id, organization_id, reporter_id, kind, status, matched_item_id FROM items WHERE id = ?', [foundItemId]);
+    const found = await one<{ id: number; organization_id: number; reporter_id: number; kind: Kind; status: number; matched_item_id: number | null; category: string }>(
+      'SELECT id, organization_id, reporter_id, kind, status, matched_item_id, category FROM items WHERE id = ?', [foundItemId]);
     if (!found || found.organization_id !== orgId || found.kind !== 'found') throw new ActionError('Item not found.');
     if (found.reporter_id === uid) throw new ActionError('You posted this item, so you cannot claim it.');
     if (found.status < 2) throw new ActionError('This item is not registered yet.');
     if (found.status >= 5) throw new ActionError('This item has already been returned.');
     if (await one(`SELECT id FROM claims WHERE found_item_id = ? AND claimant_id = ? AND status IN ('pending','approved')`, [foundItemId, uid]))
       throw new ActionError('You already sent a claim for this item.');
-    // If the system had already suggested this found item to one of the claimant's own lost reports, link it.
-    const lost = await one<{ id: number }>(`SELECT id FROM items WHERE id = ? AND reporter_id = ? AND kind = 'lost'`, [found.matched_item_id ?? 0, uid]);
-    await exec('INSERT INTO claims (found_item_id, lost_item_id, claimant_id, answers) VALUES (?, ?, ?, ?)', [foundItemId, lost?.id ?? null, uid, answers]);
+    // Link the claim to the claimant's own lost report, so that report follows the claim (approved, returned):
+    // the one the system already matched to this item, otherwise their newest open, unmatched report in the same category.
+    let lostId = (await one<{ id: number }>(`SELECT id FROM items WHERE id = ? AND reporter_id = ? AND kind = 'lost'`, [found.matched_item_id ?? 0, uid]))?.id ?? null;
+    if (!lostId) {
+      const mine = await one<{ id: number }>(
+        `SELECT l.id FROM items l WHERE l.reporter_id = ? AND l.organization_id = ? AND l.kind = 'lost' AND l.status BETWEEN 1 AND 3 AND l.category = ?
+           AND (l.matched_item_id IS NULL OR l.matched_item_id = ?)
+           AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.lost_item_id = l.id AND c.status IN ('pending','approved'))
+         ORDER BY l.id DESC LIMIT 1`, [uid, orgId, found.category, foundItemId]);
+      if (mine) {
+        lostId = mine.id;
+        await applyMatch(mine.id, foundItemId);
+        await exec('UPDATE items SET matched_item_id = ?, matched_at = NOW() WHERE id = ? AND matched_item_id IS NULL', [mine.id, foundItemId]);
+      }
+    }
+    await exec('INSERT INTO claims (found_item_id, lost_item_id, claimant_id, answers) VALUES (?, ?, ?, ?)', [foundItemId, lostId, uid, answers]);
     await exec('UPDATE items SET status = GREATEST(status, 3) WHERE id = ?', [foundItemId]);
     const title = (await one<{ title: string }>('SELECT title FROM items WHERE id = ?', [foundItemId]))?.title ?? '';
     // The finder is not told who claimed it.
@@ -841,7 +859,7 @@ async function ensureSettingsRow(orgId: number) {
   await exec('INSERT IGNORE INTO org_settings (organization_id) VALUES (?)', [orgId]);
 }
 
-export async function saveGeneralSettings(input: { storageDays: number; policeDays: number; keepDays: number; hideSensitive: boolean }): Promise<Result> {
+export async function saveGeneralSettings(input: { storageDays: number; policeDays: number; keepDays: number; hideSensitive: boolean; officePlace?: string; officeHours?: string }): Promise<Result> {
   return handle(async () => {
     const { orgId } = await requireAdmin();
     const storage = Number(input.storageDays), police = Number(input.policeDays);
@@ -852,9 +870,12 @@ export async function saveGeneralSettings(input: { storageDays: number; policeDa
     const keep = Number(input.keepDays);
     if (!Number.isInteger(keep) || keep < SETTING_LIMITS.keepDays.min || keep > SETTING_LIMITS.keepDays.max)
       throw new ActionError('The finder time limit must be between 1 and 14 days.');
+    const place = String(input.officePlace ?? '').trim(), hours = String(input.officeHours ?? '').trim();
+    maxLen(place, 150, 'The office location is too long.');
+    maxLen(hours, 150, 'The opening hours are too long.');
     await ensureSettingsRow(orgId);
-    await exec('UPDATE org_settings SET storage_days = ?, police_days = ?, finder_keep_days = ?, hide_sensitive = ? WHERE organization_id = ?',
-      [storage, police, keep, input.hideSensitive ? 1 : 0, orgId]);
+    await exec('UPDATE org_settings SET storage_days = ?, police_days = ?, finder_keep_days = ?, hide_sensitive = ?, office_place = ?, office_hours = ? WHERE organization_id = ?',
+      [storage, police, keep, input.hideSensitive ? 1 : 0, place || null, hours || null, orgId]);
     refresh();
     return {};
   });

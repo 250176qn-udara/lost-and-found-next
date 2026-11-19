@@ -66,6 +66,27 @@ export function finderJourney(f: {
   return { done, next };
 }
 
+/** One line for the staff item list: what happens next with this item, whether it is staff's turn, and where to do it. */
+export function staffNextShort(i: { id: number; kind: 'lost' | 'found'; status: number; daysKept: number | null; handedIn: boolean;
+  openClaim: 'pending' | 'approved' | null; matchedItemId: number | null }): { text: string; you: boolean; href: string } {
+  const here = `/items/${i.id}#case`;
+  if (i.status === 6) return { text: 'Closed', you: false, href: `/items/${i.id}` };
+  if (i.status === 5) return { text: 'Returned', you: false, href: `/items/${i.id}` };
+  if (i.kind === 'lost') {
+    // The work happens on the found item it is linked to.
+    const there = i.matchedItemId ? `/items/${i.matchedItemId}#case` : `/items/${i.id}`;
+    if (i.openClaim === 'pending') return { text: 'Check the claim', you: true, href: there };
+    if (i.openClaim === 'approved') return { text: 'Owner approved', you: false, href: there };
+    if (i.matchedItemId) return { text: 'Possible match', you: false, href: there };
+    return { text: 'Looking for a match', you: false, href: `/items/${i.id}` };
+  }
+  const atOffice = i.daysKept !== null;
+  if (!atOffice && i.handedIn) return { text: 'Confirm it is at the office', you: true, href: here };
+  if (i.openClaim === 'pending') return { text: 'Check the claim', you: true, href: here };
+  if (i.openClaim === 'approved') return atOffice ? { text: 'Hand it over when the owner comes', you: false, href: here } : { text: 'Waiting for the finder', you: false, href: here };
+  return atOffice ? { text: 'On the shelf, waiting for the owner', you: false, href: here } : { text: 'With the finder', you: false, href: here };
+}
+
 /** Staff looking at a found item: what the front desk should do next. */
 export function staffJourney(s: {
   itemId: number; claim: ClaimStatus | null; handedIn: boolean; atOffice: boolean; returned: boolean; closed: boolean; thanked: boolean;

@@ -38,10 +38,11 @@ const CLAIM_BADGE: Record<ClaimStatus, string> = { pending: '', approved: 'ok', 
 export default async function MyItemsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const { user } = await requirePage({ roles: ['member'], membership: true });
   const orgId = user.organizationId!;
-  const [{ tab }, t, mine, claims, pairs, onFinds, thanks, unthanked, { keepDays }, points, ranking, badges] = await Promise.all([
+  const [{ tab }, t, mine, claims, pairs, onFinds, thanks, unthanked, office, points, ranking, badges] = await Promise.all([
     searchParams, getT(), getMyItems(user.id, orgId), getMyClaims(user.id), getMatchPairs(orgId, user.id), getClaimsOnMyFinds(user.id, orgId),
     getThanks(user.id), getUnthankedReturns(user.id), getOrgSettings(orgId), getPoints(user.id, orgId), getRanking(orgId, 10), getBadges(user.id, orgId),
   ]);
+  const { keepDays } = office;
   const [msgs, seen] = await Promise.all([getClaimMessages(claims.map(c => c.id)), getSightings(mine.filter(i => i.kind === 'lost').map(i => i.id))]);
   const question = (id: number) => (msgs[id] ?? []).some(m => m.fromStaff && !m.readAt);
   // Journey helpers: the owner's latest claim on a found item, and whether thanks were sent / received.
@@ -143,7 +144,8 @@ export default async function MyItemsPage({ searchParams }: { searchParams: Prom
         <Expandable key={c.id} open={(n === 0 && c.status === 'approved') || question(c.id) || j.next.who === 'you'} tone={c.status === 'returned' ? 'done' : c.status === 'rejected' ? 'muted' : ''}
           head={<><ClaimHead c={c} t={t} next={j.next} />{question(c.id) && <span className="badge no">{t('Question from the office')}</span>}</>}>
           <JourneyPanel t={t} j={j} />
-          {c.status === 'approved' && <PickupPass t={t} title={c.itemTitle} itemCode={c.itemCode} pickupCode={c.pickupCode} shelf={c.shelf} approvedAt={c.decidedAt} atOffice={!!c.shelf} />}
+          {c.status === 'approved' && <PickupPass t={t} title={c.itemTitle} itemCode={c.itemCode} pickupCode={c.pickupCode} shelf={c.shelf} approvedAt={c.decidedAt} atOffice={!!c.shelf}
+            officePlace={office.officePlace} officeHours={office.officeHours} />}
           {c.status === 'pending' && (
             <>
               <p style={{ marginTop: 0 }}>{t('Staff are comparing your answers with the details only the owner would know. You will get a notification.')}</p>

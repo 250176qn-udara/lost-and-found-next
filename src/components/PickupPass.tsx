@@ -13,9 +13,9 @@ export function validUntil(approvedAt: string | null | undefined) {
   return d.toISOString().slice(0, 10);
 }
 
-export function PickupPass({ t, title, itemCode, pickupCode, shelf, approvedAt, atOffice }: {
+export function PickupPass({ t, title, itemCode, pickupCode, shelf, approvedAt, atOffice, officePlace = '', officeHours = '' }: {
   t: T; title: string; itemCode: string | null; pickupCode: string | null | undefined; shelf: string | null | undefined;
-  approvedAt: string | null | undefined; atOffice: boolean;
+  approvedAt: string | null | undefined; atOffice: boolean; officePlace?: string; officeHours?: string;
 }) {
   return (
     <div className="cols even" style={{ alignItems: 'center' }}>
@@ -28,7 +28,7 @@ export function PickupPass({ t, title, itemCode, pickupCode, shelf, approvedAt, 
             <div className="meta">{t('Tell this pickup code to staff')}</div>
           </>
         )}
-        <QrCode text={itemCode ?? title} size={110} />
+        <QrCode text={[itemCode ?? title, pickupCode].filter(Boolean).join(' ')} size={110} />
         <div className="code">{itemCode ?? '—'}</div>
         <div style={{ maxWidth: 240, margin: '8px auto 0', textAlign: 'left' }}>
           <Kv label={t('Shelf')} value={atOffice ? shelf ?? '—' : t('Not at the office yet')} />
@@ -36,7 +36,9 @@ export function PickupPass({ t, title, itemCode, pickupCode, shelf, approvedAt, 
         </div>
       </div>
       <ol className="steplist">
-        <li><div><b>{t('Go to the office')}</b><div className="meta">{t('Open hours are shown at the front desk.')}</div></div></li>
+        <li><div><b>{t('Go to the office')}</b><div className="meta">{officePlace || officeHours
+          ? <>{officePlace && <>📍 {officePlace}<br /></>}{officeHours && <>🕘 {officeHours}</>}</>
+          : t('Open hours are shown at the front desk.')}</div></div></li>
         <li><div><b>{t('Show your photo ID and tell the pickup code')}</b><div className="meta">{t('Staff check both before they hand over the item.')}</div></div></li>
         <li><div><b>{t('Take your item home')}</b><div className="meta">{t('The return is recorded in your history.')}</div></div></li>
       </ol>

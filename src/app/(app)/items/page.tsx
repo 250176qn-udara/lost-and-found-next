@@ -14,6 +14,7 @@ import { Empty } from '@/components/Illustration';
 import { LinkManuallyButton, RejectMatchButton } from '@/components/MatchButtons';
 import { pickTab, Tabs, type TabDef } from '@/components/Tabs';
 import { Head, href, LinkChips, placeDate } from '@/components/ui';
+import { staffNextShort } from '@/lib/journey';
 
 const FILTERS = ['All', ...STEPS, 'Closed'];
 
@@ -54,7 +55,9 @@ function ItemList({ items, kind, f, q, view, t }: { items: Items; kind: 'lost' |
   const needle = q.trim().toLowerCase();
   const list = items.filter(i =>
     (f === 'All' || statusName(i.status) === f) &&
-    (!needle || `${i.title} ${i.itemCode ?? ''} ${i.place} ${i.reporterName} ${i.category} ${t(i.category)} ${i.description}`.toLowerCase().includes(needle)));
+    (!needle || `${i.title} ${i.itemCode ?? ''} ${i.place} ${i.reporterName} ${i.category} ${t(i.category)} ${i.description}`.toLowerCase().includes(needle)))
+    // Items where it is staff's turn come first, so the list doubles as a to-do list.
+    .sort((a, b) => Number(staffNextShort(b).you) - Number(staffNextShort(a).you));
   const csv: (string | number)[][] = [
     ['Code', 'Type', 'Item', 'Category', 'Place', 'Date', 'Status', 'Shelf', 'Reported by', 'Reported at'],
     ...list.map(i => [i.itemCode ?? '', i.kind, i.title, i.category, i.place, i.date ?? '', statusName(i.status), i.shelf ?? '', i.reporterName, i.createdAt]),
@@ -96,7 +99,7 @@ function ItemList({ items, kind, f, q, view, t }: { items: Items; kind: 'lost' |
         </div>
       ) : <Empty art="search" title={t('No items match.')} />) : (
       <table>
-        <thead><tr><th></th><th>{t('Item')}</th><th>{t('Place')}</th><th>{t('Status')}</th>
+        <thead><tr><th></th><th>{t('Item')}</th><th>{t('Place')}</th><th>{t('Status')}</th><th>{t('Next step')}</th>
           {kind === 'found' ? <><th>{t('Item code')}</th><th>{t('Shelf')}</th></> : <th>{t('Reported by')}</th>}</tr></thead>
         <tbody>
           {list.length ? list.map(i => (
@@ -107,9 +110,10 @@ function ItemList({ items, kind, f, q, view, t }: { items: Items; kind: 'lost' |
               <td><Link href={`/items/${i.id}`}>{i.title}</Link><div className="meta">{t(i.category)} · {i.reporterName}</div></td>
               <td>{placeDate(i.place, i.date, t)}</td>
               <td><span className={'badge ' + (i.status === 5 ? 'ok' : i.status === 6 ? 'no' : '')}>{t(statusName(i.status))}</span></td>
+              <td>{(() => { const n = staffNextShort(i); return <Link className={'nextchip' + (n.you ? ' you' : '')} href={n.href}>{n.you && <Icon name="alert" size={14} />}{t(n.text)}</Link>; })()}</td>
               {kind === 'found' ? <><td>{i.itemCode ?? '—'}</td><td>{i.shelf ?? '—'}</td></> : <td>{i.reporterName}</td>}
             </tr>
-          )) : <tr><td colSpan={6} className="meta">{t('No items match.')}</td></tr>}
+          )) : <tr><td colSpan={7} className="meta">{t('No items match.')}</td></tr>}
         </tbody>
       </table>
       )}

@@ -1393,6 +1393,13 @@ a.box:hover b,a.kpi:hover .kpi-label{color:var(--brand-dk)}
 .showcode>div{display:flex;flex-direction:column;gap:4px}
 .showcode .qrsvg{border-radius:8px;flex:none}
 
+/* item list: next step per row */
+.nextchip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:12.5px;font-weight:600;text-decoration:none!important;
+  background:var(--line2);color:var(--mute)!important;border:1px solid var(--line);white-space:nowrap}
+.nextchip:hover{border-color:var(--brand);color:var(--brand-dk)!important}
+.nextchip.you{background:#FEF3C7;color:#92400E!important;border-color:#FCD34D}
+[data-theme="dark"] .nextchip.you{background:#2B2110;color:#FCD34D!important;border-color:#5C4813}
+
 /* =================== Item page: the whole case on one screen =================== */
 .casepanel{margin-bottom:20px;border-top-color:#6366F1}
 .casepanel h2{display:flex;align-items:center;gap:8px}

@@ -12,6 +12,9 @@ export type OrgSettings = {
   policeDays: number;
   /** Members don't see these categories in Found items; owners are still told through matching. */
   hideSensitive: boolean;
+  /** Where people bring and collect items, and when the office is open ('' = not set). */
+  officePlace: string;
+  officeHours: string;
   categories: string[];
   shelves: string[];
   idTypes: string[];
@@ -29,13 +32,16 @@ function list(raw: string | null, fallback: string[]): string[] {
 
 /** Cached per request. */
 export const getOrgSettings = cache(async (orgId: number): Promise<OrgSettings> => {
-  const r = await one<{ storage_days: number; police_days: number; finder_keep_days: number; hide_sensitive: number; categories: string | null; shelves: string | null; id_types: string | null }>(
-    'SELECT storage_days, police_days, finder_keep_days, hide_sensitive, categories, shelves, id_types FROM org_settings WHERE organization_id = ?', [orgId]);
+  const r = await one<{ storage_days: number; police_days: number; finder_keep_days: number; hide_sensitive: number; office_place: string | null; office_hours: string | null;
+    categories: string | null; shelves: string | null; id_types: string | null }>(
+    'SELECT storage_days, police_days, finder_keep_days, hide_sensitive, office_place, office_hours, categories, shelves, id_types FROM org_settings WHERE organization_id = ?', [orgId]);
   return {
     storageDays: r ? Number(r.storage_days) : STORAGE_DAYS,
     policeDays: r ? Number(r.police_days) : POLICE_DAYS,
     keepDays: r ? Number(r.finder_keep_days) : FINDER_KEEP_DAYS,
     hideSensitive: r ? Boolean(Number(r.hide_sensitive)) : false,
+    officePlace: r?.office_place ?? '',
+    officeHours: r?.office_hours ?? '',
     categories: list(r?.categories ?? null, CATEGORIES),
     shelves: list(r?.shelves ?? null, SHELVES),
     idTypes: list(r?.id_types ?? null, ID_TYPES),

@@ -224,6 +224,8 @@ CREATE TABLE IF NOT EXISTS org_settings (
   police_days     TINYINT UNSIGNED NOT NULL DEFAULT 7,    -- report to the police within this many days (Lost Property Act: 1 week)
   finder_keep_days TINYINT UNSIGNED NOT NULL DEFAULT 5,   -- a finder may keep a found item this long, then brings it to the office
   hide_sensitive  TINYINT(1) NOT NULL DEFAULT 0,          -- hide wallets, ID cards, IC cards and phones from Found items
+  office_place    VARCHAR(150) NULL,                      -- where people bring and collect items, e.g. "Bldg A · 1F Student office"
+  office_hours    VARCHAR(150) NULL,                      -- e.g. "Mon–Fri 9:00–17:00"
   categories      TEXT NULL,                              -- JSON array
   shelves         TEXT NULL,                              -- JSON array
   id_types        TEXT NULL,                              -- JSON array
@@ -327,6 +329,7 @@ CREATE TABLE IF NOT EXISTS wall_claps (
 -- and (created before Gemini matching): ALTER TABLE items ADD COLUMN ai_score TINYINT UNSIGNED NULL, ADD COLUMN ai_reason VARCHAR(300) NULL;
 -- and (created before the super admin): ALTER TABLE users ADD COLUMN is_super TINYINT(1) NOT NULL DEFAULT 0 AFTER deleted_at;
 --   then run the INSERT IGNORE INTO users ... 'super@example.com' line above.
+-- and (created before the office location and hours): ALTER TABLE org_settings ADD COLUMN office_place VARCHAR(150) NULL AFTER hide_sensitive, ADD COLUMN office_hours VARCHAR(150) NULL AFTER office_place;
 -- and (created before "Forgot password"): run the CREATE TABLE password_resets block above.
 -- and (created before the finder time limit): ALTER TABLE items ADD COLUMN keep_reminder TINYINT UNSIGNED NOT NULL DEFAULT 0;
 --   ALTER TABLE org_settings ADD COLUMN finder_keep_days TINYINT UNSIGNED NOT NULL DEFAULT 5 AFTER police_days;

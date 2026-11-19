@@ -21,6 +21,15 @@ const J: Record<string, string> = {
   'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
   'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
   'No organization yet': '組織なし',
+  // item list next step, office info, dashboard counts
+  'Next step': '次にやること', 'Owner approved': '持ち主を承認済み', 'Looking for a match': '一致する物を探しています',
+  'Hand it over when the owner comes': '持ち主が来たら返す', 'Waiting for the finder': '拾い主を待っています',
+  'On the shelf, waiting for the owner': '棚で保管中・持ち主待ち',
+  'Office location': '事務所の場所', 'Opening hours': '受付時間', 'e.g. Bldg A · 1F Student office (reception)': '例：A館・1F 学生課（受付）',
+  'e.g. Mon–Fri 9:00–17:00': '例：月〜金 9:00〜17:00',
+  'Owners see this on their pickup pass, finders when they bring an item.': '持ち主は受け取り証で、拾い主は届けるときに見ます。',
+  'The office location is too long.': '事務所の場所が長すぎます。', 'The opening hours are too long.': '受付時間が長すぎます。',
+  '1 urgent thing needs your attention today.': '今日、急ぎの対応が1件あります。', '1 thing is waiting for you today.': '今日、対応待ちが1件あります。',
   // front desk lookup and item codes
   'Someone at the desk?': '受付に人が来ましたか？',
   'Type or scan the item code (finder) or the 6-digit pickup code (owner). The item opens at the step to do now.': 'アイテムコード（拾い主）か6桁の受け取りコード（持ち主）を入力またはスキャンしてください。今やるべきステップで開きます。',
