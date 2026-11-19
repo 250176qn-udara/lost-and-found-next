@@ -26,11 +26,11 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
   const pending = claims.filter(c => c.status === 'pending');
   // Claims whose found item is still with the member who found it: the desk can message that finder from the card.
   const withFinder = (c: (typeof claims)[number]) => !c.atOffice && !!c.finderId && c.finderId !== c.claimantId;
-  const [msgs, fmsgs] = await Promise.all([getClaimMessages(claims.map(c => c.id)), getFinderMessages(claims.filter(withFinder).map(c => c.id))]);
+  const [msgs, fmsgs] = await Promise.all([getClaimMessages(claims.map(c => c.id)), getFinderMessages(claims.filter(withFinder).map(c => c.foundItemId!))]);
   const newReply = (id: number) => (msgs[id] ?? []).some(m => !m.fromStaff && !m.readAt);
-  const finderReply = (id: number) => (fmsgs[id] ?? []).some(m => !m.fromStaff && !m.readAt);
+  const finderReply = (id: number) => { const c = claims.find(x => x.id === id); return !!c?.foundItemId && (fmsgs[c.foundItemId] ?? []).some(m => !m.fromStaff && !m.readAt); };
   const finderChat = (c: (typeof claims)[number]) => withFinder(c) && (
-    <FinderChat claimId={c.id} finderName={c.finderName ?? ''} handedIn={!!c.handedIn} messages={fmsgs[c.id] ?? []} messagesHref={`/messages?with=${c.finderId}`} />);
+    <FinderChat itemId={c.foundItemId!} finderName={c.finderName ?? ''} handedIn={!!c.handedIn} claimed messages={fmsgs[c.foundItemId!] ?? []} messagesHref={`/messages?with=${c.finderId}`} />);
   const pickups = claims.filter(c => c.status === 'approved');
   const tabs: TabDef[] = [
     { key: 'verify', label: 'Verify claims', icon: 'shield', count: pending.length },
@@ -80,7 +80,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           <DecideButtons id={c.id} />
           <ClaimChat claimId={c.id} messages={msgs[c.id] ?? []} viewer="staff" open messagesHref={`/messages?with=${c.claimantId}`} />
           {finderChat(c)}
-          {c.foundItemId && <div className="btnrow" style={{ marginTop: 8 }}><Link href={`/items/${c.foundItemId}`}>{t('Open the item')}</Link></div>}
+          {c.foundItemId && <div className="btnrow" style={{ marginTop: 8 }}><Link className="btn sec" href={`/items/${c.foundItemId}#case`}><Icon name="list" size={16} />{t('Open the whole case')}</Link></div>}
         </Expandable>
       )) : <Empty art="verify" title={t('No claims to verify.')} text={t('New claims appear here. You compare the answers with the private details.')} />)}
 
@@ -102,6 +102,7 @@ export default async function DeskPage({ searchParams }: { searchParams: Promise
           <HandoverForm id={c.id} hasCode ready={!!c.atOffice} itemId={c.foundItemId} idTypes={settings.idTypes} />
           {finderChat(c)}
           <ClaimChat claimId={c.id} messages={msgs[c.id] ?? []} viewer="staff" open messagesHref={`/messages?with=${c.claimantId}`} />
+          {c.foundItemId && <div className="btnrow" style={{ marginTop: 8 }}><Link className="btn sec" href={`/items/${c.foundItemId}#case`}><Icon name="list" size={16} />{t('Open the whole case')}</Link></div>}
         </Expandable>
       )) : <Empty art="done" title={t('No pickups waiting.')} text={t('Approved claims appear here until the owner collects the item.')} />)}
 

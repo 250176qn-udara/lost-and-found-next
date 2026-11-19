@@ -77,10 +77,10 @@ export function staffJourney(s: {
   let next: NextStep;
   if (s.closed) next = { who: 'done', text: 'Closed without the owner (see the record above).' };
   else if (s.returned) next = { who: 'done', text: 'Returned to its owner.' };
-  else if (s.handedIn && !s.atOffice) next = { who: 'you', text: 'The finder says it is at the office. Confirm it and choose a shelf.', href: `/register?receive=${s.itemId}`, label: 'Confirm the item is at the office' };
-  else if (s.claim === 'pending') next = { who: 'you', text: 'Compare the claimant’s answers with the private details, then approve or reject.', href: '/desk', label: 'Front desk' };
-  else if (s.claim === 'approved' && s.atOffice) next = { who: 'owner', text: 'Waiting for the owner. When they come, check the pickup code and ID.', href: '/desk?tab=pickups', label: 'Pickups' };
-  else if (s.claim === 'approved') next = { who: 'finder', text: 'Waiting for the finder to bring it to the office.', href: '/messages', label: 'Messages' };
+  else if (s.handedIn && !s.atOffice) next = { who: 'you', text: 'The finder says it is at the office. Confirm it and choose a shelf.', href: '#case', label: 'Confirm the item is at the office' };
+  else if (s.claim === 'pending') next = { who: 'you', text: 'Compare the claimant’s answers with the private details, then approve or reject.', href: '#case', label: 'Check the claim' };
+  else if (s.claim === 'approved' && s.atOffice) next = { who: 'owner', text: 'Waiting for the owner. When they come, check the pickup code and ID.', href: '#case', label: 'Hand it over' };
+  else if (s.claim === 'approved') next = { who: 'finder', text: 'Waiting for the finder to bring it to the office.', href: '#case', label: 'Message the finder' };
   else if (!s.atOffice) next = { who: 'finder', text: 'The finder still has it. No one has claimed it yet.' };
   else next = { who: 'owner', text: 'Stored at the office. Waiting for the owner to claim it.' };
   return { done, next };

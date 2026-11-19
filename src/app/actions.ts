@@ -219,6 +219,20 @@ export async function reportItem(fd: FormData): Promise<Result<{ matched: boolea
 }
 
 /** Gives an item its permanent code (e.g. LF-2026-0148) if it has none yet. */
+/** The item just reached the office: if its claim is already approved, email the owner to come and pick it up. */
+async function tellOwnerItArrived(itemId: number) {
+  const c = await one<{ claimant_id: number; title: string; shelf: string | null; item_code: string | null; pickup_code: string | null }>(
+    `SELECT c.claimant_id, i.title, i.shelf, i.item_code, c.pickup_code FROM claims c JOIN items i ON i.id = c.found_item_id
+     WHERE c.found_item_id = ? AND c.status = 'approved' ORDER BY c.id DESC LIMIT 1`, [itemId]);
+  if (!c) return;
+  await emailUser(c.claimant_id, 'claims', {
+    subject: ['お探しの物が事務所に届きました', 'Your item is at the office'],
+    ja: [`「${c.title}」が事務所に届きました。受け取りコード（${c.pickup_code ?? '—'}）と写真付きの身分証を持って、事務所（受付）にお越しください。`],
+    en: [`Your "${c.title}" is now at the office. Come to the office (reception) with your pickup code (${c.pickup_code ?? '—'}) and a photo ID.`],
+    path: '/my-items?tab=claims',
+  });
+}
+
 async function assignCode(id: number): Promise<string> {
   const code = (await one<{ item_code: string | null }>('SELECT item_code FROM items WHERE id = ?', [id]))?.item_code;
   if (code) return code;
@@ -402,11 +416,42 @@ export async function receiveAndRegister(fd: FormData): Promise<Result<{ id: num
         await award(orgId, f.reporter_id, 'handed_in', id);
         if (Number(f.on_time) === 1) await award(orgId, f.reporter_id, 'on_time', id);
       }
+      await tellOwnerItArrived(id);
     }
     const found = alreadyMatched ? null : await matchNewItem(orgId, 'found', category, place, itemDate, id, pin);
     const report = await intakeMatchView(id, found);
     refresh();
     return { id, itemCode: code, shelf, report };
+  });
+}
+
+/** From the item page: the finder's item is at the office now. Only the shelf is needed; everything else was posted. */
+export async function receiveAtOffice(itemId: number, shelf: string): Promise<Result<{ itemCode: string }>> {
+  return handle(async () => {
+    const { uid, orgId } = await requireStaff();
+    shelf = shelf.trim();
+    if (!shelf) throw new ActionError('Please choose a shelf.');
+    maxLen(shelf, 10, 'Shelf is too long.');
+    const it = await one<{ organization_id: number; kind: Kind; status: number; received_at: string | null; matched_item_id: number | null;
+      reporter_id: number; category: string; place: string; item_date: string | null; lat: string | null; lng: string | null; on_time: number }>(
+      `SELECT organization_id, kind, status, received_at, matched_item_id, reporter_id, category, place, item_date, lat, lng,
+              (COALESCE(handed_in_at, NOW()) <= DATE_ADD(created_at, INTERVAL ? DAY)) AS on_time FROM items WHERE id = ?`,
+      [(await getOrgSettings(orgId)).keepDays, itemId]);
+    if (!it || it.organization_id !== orgId || it.kind !== 'found') throw new ActionError('Item not found.');
+    if (it.received_at || it.status >= 5) throw new ActionError('This item was already received.');
+    await exec('UPDATE items SET shelf = ?, status = GREATEST(status, 2), received_by = ?, received_at = NOW() WHERE id = ?', [shelf, uid, itemId]);
+    const code = await assignCode(itemId);
+    if (it.reporter_id !== uid) {
+      await award(orgId, it.reporter_id, 'handed_in', itemId);
+      if (Number(it.on_time) === 1) await award(orgId, it.reporter_id, 'on_time', itemId);
+    }
+    if (it.matched_item_id === null) {
+      await matchNewItem(orgId, 'found', it.category, it.place, it.item_date ? String(it.item_date).slice(0, 10) : null, itemId,
+        { lat: it.lat === null ? null : Number(it.lat), lng: it.lng === null ? null : Number(it.lng) });
+    }
+    await tellOwnerItArrived(itemId);
+    refresh();
+    return { itemCode: code };
   });
 }
 
@@ -967,24 +1012,23 @@ export async function markOfficeRead(memberId: number | null): Promise<void> {
 
 /** Staff on a claim card talking to the member who found the item (e.g. "the owner needs it, please bring it today").
  *  The finder only sees "Office" and the item; never who claimed it. */
-async function finderParty(claimId: number) {
+async function finderParty(itemId: number) {
   const { uid, orgId } = await requireStaff();
-  const c = await one<{ status: string; claimant_id: number; organization_id: number; found_item_id: number; reporter_id: number; title: string }>(
-    `SELECT c.status, c.claimant_id, i.organization_id, c.found_item_id, i.reporter_id, i.title
-     FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?`, [claimId]);
-  if (!c || c.organization_id !== orgId || c.reporter_id === c.claimant_id) throw new ActionError('Claim not found.');
-  const member = await one(`SELECT id FROM organization_members WHERE user_id = ? AND organization_id = ? AND status = 'approved'`, [c.reporter_id, orgId]);
+  const it = await one<{ organization_id: number; kind: Kind; status: number; reporter_id: number }>(
+    'SELECT organization_id, kind, status, reporter_id FROM items WHERE id = ?', [itemId]);
+  if (!it || it.organization_id !== orgId || it.kind !== 'found') throw new ActionError('Item not found.');
+  const member = await one(`SELECT id FROM organization_members WHERE user_id = ? AND organization_id = ? AND status = 'approved'`, [it.reporter_id, orgId]);
   if (!member) throw new ActionError('The finder is no longer a member of your organization.');
-  return { uid, orgId, finderId: c.reporter_id, itemId: c.found_item_id, status: c.status, title: c.title };
+  return { uid, orgId, finderId: it.reporter_id, itemId, open: it.status < 5 };
 }
 
-export async function sendFinderMessage(claimId: number, rawBody: string): Promise<Result> {
+export async function sendFinderMessage(itemId: number, rawBody: string): Promise<Result> {
   return handle(async () => {
-    const p = await finderParty(claimId);
+    const p = await finderParty(itemId);
     const body = rawBody.trim();
     if (!body) throw new ActionError('Please write a message.');
     maxLen(body, 1000, 'The message is too long.');
-    if (p.status !== 'pending' && p.status !== 'approved') throw new ActionError('This claim is closed.');
+    if (!p.open) throw new ActionError('This item is already closed.');
     // Goes into the finder's Messages conversation with the office, tagged with the item (their reply is tagged too).
     await postOfficeMessage(p.orgId, p.finderId, p.uid, true, body, p.itemId);
     await mailChat(p.orgId, p.finderId, p.uid, true, body);
@@ -994,8 +1038,8 @@ export async function sendFinderMessage(claimId: number, rawBody: string): Promi
 }
 
 /** Staff opened the finder conversation on a claim card: the finder's replies about this item are read. */
-export async function markFinderMessagesRead(claimId: number): Promise<void> {
-  const p = await finderParty(claimId);
+export async function markFinderMessagesRead(itemId: number): Promise<void> {
+  const p = await finderParty(itemId);
   await exec('UPDATE office_messages SET read_at = NOW() WHERE organization_id = ? AND member_id = ? AND item_id = ? AND from_staff = 0 AND read_at IS NULL',
     [p.orgId, p.finderId, p.itemId]);
 }

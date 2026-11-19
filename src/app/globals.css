@@ -1379,6 +1379,29 @@ a.box:hover b,a.kpi:hover .kpi-label{color:var(--brand-dk)}
 .devacct.pos-super .avatar{background:linear-gradient(135deg,#334155,#0F172A)}
 .devacct.pos-none .avatar{background:#94A3B8}
 
+/* =================== Item page: the whole case on one screen =================== */
+.casepanel{margin-bottom:20px;border-top-color:#6366F1}
+.casepanel h2{display:flex;align-items:center;gap:8px}
+.casestep{position:relative;padding:0 0 14px 44px}
+.casestep:not(:last-of-type)::before{content:"";position:absolute;left:15px;top:34px;bottom:0;width:2px;background:var(--line)}
+.casestep.done:not(:last-of-type)::before{background:#10B981}
+.casestep-head{display:flex;align-items:flex-start;gap:12px;min-height:32px}
+.casestep-head b{font-size:15.5px;color:var(--ink)}
+.casestep-n{position:absolute;left:0;top:0;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;
+  background:var(--line2);color:var(--mute);border:2px solid var(--line)}
+.casestep.done .casestep-n{background:#10B981;border-color:#10B981;color:#fff}
+.casestep.now .casestep-n{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 0 0 5px rgba(99,102,241,.18)}
+.casestep.later{opacity:.62}
+.casestep.now>.casestep-head b{color:var(--brand-dk)}
+.casestep-body{margin-top:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--card);display:flex;flex-direction:column;gap:16px}
+.casestep-also{margin:-6px 0 10px 44px;font-weight:600}
+.caseclaim{border-bottom:1px dashed var(--line);padding-bottom:14px}
+.caseclaim:last-child{border-bottom:0;padding-bottom:0}
+.receivehere-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.receivehere-row .field{margin:0;min-width:160px}
+[data-theme="dark"] .casestep-body{background:#111829}
+[data-theme="dark"] .casestep.now .casestep-n{box-shadow:0 0 0 5px rgba(129,140,248,.25)}
+
 /* =================== Dark mode =================== */
 /* Switched by the moon / sun button in the top bar (saved per browser; first visit follows the device setting).
    lib/theme.ts puts data-theme="dark" on <html> before the page is painted. Everything below only applies then:

@@ -18,6 +18,7 @@ import { MapView } from '@/components/MapView';
 import { FloorPlan } from '@/components/FloorPlan';
 import { mapsLink } from '@/lib/geo';
 import { Callout, Head, KindBadge, Kv, placeDate, Timeline } from '@/components/ui';
+import { CasePanel } from './CasePanel';
 
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { user } = await requirePage({ membership: true });
@@ -29,7 +30,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const visible = it && (isStaff || isMine || (it.kind === 'found' && it.status >= 2 && it.status < 5));
   if (!visible) notFound();
 
-  const [t, claims, { policeDays, keepDays }, places] = await Promise.all([getT(), getClaimEvents(it.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!)]);
+  const [t, claims, { policeDays, keepDays, shelves, idTypes }, places] = await Promise.all([getT(), getClaimEvents(it.id), getOrgSettings(user.organizationId!), getPlaces(user.organizationId!)]);
   // Members see claims only on their own reports: their own claims (lost report), or that someone claimed the item
   // they found (found item). Names and answers stay hidden from members (showNames below is staff only).
   const shownClaims = isStaff || isMine ? claims : [];
@@ -70,6 +71,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   return (
     <>
       <Head title={it.title} sub={t('Item details')} />
+      {/* Staff: every step of this found item, and the controls for the next one, on this one screen. */}
+      {isStaff && it.kind === 'found' && <CasePanel it={it} orgId={user.organizationId!} shelves={shelves} idTypes={idTypes} t={t} />}
       <div className="cols">
         <div>
           <div className="box" style={{ marginBottom: 16 }}>

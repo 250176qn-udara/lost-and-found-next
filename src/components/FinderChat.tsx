@@ -8,19 +8,24 @@ import { Icon } from './Icon';
 import { useT, useToast } from './Providers';
 import { ErrorText } from './ui';
 
-/** Ready-made messages for the most common case: the owner is waiting and the finder still has the item. */
-const QUICK = [
+/** Ready-made messages: with a claim the owner is waiting; without one, a plain request to bring it in. */
+const QUICK_CLAIMED = [
   'The owner needs this item urgently. Could you bring it to the office today?',
   'When can you bring the item to the office?',
   'Please hand it to the reception. Thank you for your help!',
 ];
+const QUICK_OPEN = [
+  'Please bring the item to the office (reception) when you can.',
+  'When can you bring the item to the office?',
+  'Thank you for posting it! Please hand it to the reception.',
+];
 
 /**
- * On a claim card at the front desk: talk to the member who found the item while they still have it.
+ * On a claim card at the front desk and on the item page: talk to the member who found the item while they still have it.
  * Staff only. The finder sees "Office" and the item, never who claimed it.
  */
-export function FinderChat({ claimId, finderName, handedIn, messages, messagesHref }: {
-  claimId: number; finderName: string; handedIn: boolean; messages: ClaimMessage[]; messagesHref: string;
+export function FinderChat({ itemId, finderName, handedIn, claimed, messages, messagesHref }: {
+  itemId: number; finderName: string; handedIn: boolean; claimed: boolean; messages: ClaimMessage[]; messagesHref: string;
 }) {
   const t = useT();
   const toast = useToast();
@@ -30,14 +35,14 @@ export function FinderChat({ claimId, finderName, handedIn, messages, messagesHr
   const end = useRef<HTMLDivElement>(null);
   const unread = messages.some(m => !m.fromStaff && !m.readAt);
 
-  useEffect(() => { if (unread) markFinderMessagesRead(claimId).catch(() => {}); }, [claimId, unread]);
+  useEffect(() => { if (unread) markFinderMessagesRead(itemId).catch(() => {}); }, [itemId, unread]);
   useEffect(() => { end.current?.scrollIntoView({ block: 'nearest' }); }, [messages.length]);
 
   function send(body = text) {
     setErr('');
     if (!body.trim()) return setErr('Please write a message.');
     start(async () => {
-      const r = await sendFinderMessage(claimId, body);
+      const r = await sendFinderMessage(itemId, body);
       if (!r.ok) return setErr(r.error);
       setText('');
       toast('Message sent to the finder');
@@ -51,7 +56,7 @@ export function FinderChat({ claimId, finderName, handedIn, messages, messagesHr
         <Link href={messagesHref} style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{t('Open in Messages')} →</Link>
       </div>
       <p className="meta" style={{ margin: '0 0 8px' }}>
-        {t(handedIn ? 'The finder says they brought it to the office. Confirm it in "From finders".' : 'The finder still has the item. Ask them to bring it to the office. They will not see who claimed it.')}
+        {t(handedIn ? 'The finder says they brought it to the office. Confirm it when you have it.' : claimed ? 'The finder still has the item. Ask them to bring it to the office. They will not see who claimed it.' : 'The finder still has the item. Nobody has claimed it yet.')}
       </p>
       {messages.length > 0 && (
         <div className="chat-log">
@@ -65,7 +70,7 @@ export function FinderChat({ claimId, finderName, handedIn, messages, messagesHr
         </div>
       )}
       <div className="chips" style={{ margin: '0 0 8px' }}>
-        {QUICK.map(q => <button key={q} type="button" disabled={busy} onClick={() => setText(t(q))}>{t(q)}</button>)}
+        {(claimed ? QUICK_CLAIMED : QUICK_OPEN).map(q => <button key={q} type="button" disabled={busy} onClick={() => setText(t(q))}>{t(q)}</button>)}
       </div>
       <div className="chat-input">
         <textarea rows={2} maxLength={1000} value={text} onChange={e => setText(e.target.value)} placeholder={t('Write to the finder')}

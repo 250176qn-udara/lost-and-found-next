@@ -297,8 +297,8 @@ export async function getPostNotices(uid: number, orgId: number, staff: boolean)
 
 export async function getMemberNotices(uid: number, orgId: number): Promise<Notice[]> {
   const [claims, matches, handedIn, onMyFinds] = await Promise.all([
-    all<{ id: number; status: ClaimStatus; title: string; decided_at: string | null; returned_at: string | null; pickup_code: string | null }>(
-      `SELECT c.id, c.status, i.title, c.decided_at, c.returned_at, c.pickup_code
+    all<{ id: number; status: ClaimStatus; title: string; decided_at: string | null; returned_at: string | null; pickup_code: string | null; received_at: string | null; shelf: string | null }>(
+      `SELECT c.id, c.status, i.title, c.decided_at, c.returned_at, c.pickup_code, i.received_at, i.shelf
        FROM claims c JOIN items i ON i.id = c.found_item_id
        WHERE c.claimant_id = ? AND c.status <> 'pending'`, [uid]),
     all<{ id: number; title: string; matched_at: string | null }>(
@@ -360,6 +360,9 @@ export async function getMemberNotices(uid: number, orgId: number): Promise<Noti
   for (const c of claims) {
     // The pickup code goes to the claimant automatically (only they receive this notification).
     if (c.status === 'approved') list.push({ id: `ca${c.id}`, title: 'Claim approved — your pickup code is ready', text: c.pickup_code ? `${c.title} · ${c.pickup_code}` : c.title, at: c.decided_at ?? '', href: '/my-items?tab=claims' });
+    // The finder still had it when the claim was approved: tell the owner when it reaches the office.
+    if (c.status === 'approved' && c.received_at && c.decided_at && c.received_at > c.decided_at)
+      list.push({ id: `ar${c.id}`, title: 'Your item is at the office. Bring your pickup code and photo ID', text: c.title, at: c.received_at, href: '/my-items?tab=claims' });
     if (c.status === 'rejected') list.push({ id: `cr${c.id}`, title: 'Claim rejected', text: c.title, at: c.decided_at ?? '', href: '/my-items' });
     if (c.status === 'returned') list.push({ id: `rt${c.id}`, title: 'Item returned to you', text: c.title, at: c.returned_at ?? '', href: '/my-items?tab=claims' });
   }
@@ -493,20 +496,20 @@ export type ClaimMessage = { id: number; claimId: number; fromStaff: boolean; se
  * Messages about the given claims, oldest first. They live in the claimant's office conversation (Messages page),
  * tagged with the claimed item, so they show up in both places. Callers make sure the viewer may see these claims.
  */
-/** Per claim: the office's messages with the finder about the claimed item (staff only). Same shape as getClaimMessages. */
-export async function getFinderMessages(claimIds: number[]): Promise<Record<number, ClaimMessage[]>> {
+/** Per found item: the office's messages with the member who found it, about that item (staff only).
+ *  Same shape as getClaimMessages; claimId holds the item id here. */
+export async function getFinderMessages(itemIds: number[]): Promise<Record<number, ClaimMessage[]>> {
   const out: Record<number, ClaimMessage[]> = {};
-  if (!claimIds.length) return out;
+  if (!itemIds.length) return out;
   const rows = await all<Record<string, unknown>>(
-    `SELECT m.id, c.id AS claim_id, m.from_staff, m.body, m.created_at, m.read_at, COALESCE(u.name, 'Lost & Found') AS sender_name
-     FROM claims c
-     JOIN items i ON i.id = c.found_item_id
-     JOIN office_messages m ON m.organization_id = i.organization_id AND m.member_id = i.reporter_id AND m.item_id = c.found_item_id
+    `SELECT m.id, i.id AS item_id, m.from_staff, m.body, m.created_at, m.read_at, COALESCE(u.name, 'Lost & Found') AS sender_name
+     FROM items i
+     JOIN office_messages m ON m.organization_id = i.organization_id AND m.member_id = i.reporter_id AND m.item_id = i.id
      LEFT JOIN users u ON u.id = m.sender_id
-     WHERE c.id IN (${claimIds.map(() => '?').join(',')}) AND i.reporter_id <> c.claimant_id ORDER BY m.id`, claimIds);
+     WHERE i.id IN (${itemIds.map(() => '?').join(',')}) ORDER BY m.id`, itemIds);
   for (const r of rows) {
     const m: ClaimMessage = {
-      id: Number(r.id), claimId: Number(r.claim_id), fromStaff: Boolean(Number(r.from_staff)), senderName: String(r.sender_name),
+      id: Number(r.id), claimId: Number(r.item_id), fromStaff: Boolean(Number(r.from_staff)), senderName: String(r.sender_name),
       body: String(r.body), createdAt: String(r.created_at), readAt: s(r.read_at),
     };
     (out[m.claimId] ??= []).push(m);
