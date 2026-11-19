@@ -21,6 +21,15 @@ const J: Record<string, string> = {
   'Gallery': 'ギャラリー', 'Take a photo': '写真を撮る', 'Choose a photo': '写真を選ぶ', 'Change photo': '写真を変える',
   'Photo preview': '写真のプレビュー', 'Optional · max 1.5 MB': '任意・最大1.5MB',
   'No organization yet': '組織なし',
+  // front desk: the finder of a claimed item
+  'Message the finder': '拾い主にメッセージ', 'Finder replied': '拾い主から返信', 'Write to the finder': '拾い主へのメッセージ',
+  'Message sent to the finder': '拾い主にメッセージを送りました',
+  'The owner needs this item urgently. Could you bring it to the office today?': '持ち主が急いでいます。今日中に事務所へ届けていただけますか？',
+  'When can you bring the item to the office?': 'いつ事務所に届けられますか？',
+  'Please hand it to the reception. Thank you for your help!': '受付に渡してください。ご協力ありがとうございます！',
+  'The finder says they brought it to the office. Confirm it in "From finders".': '拾い主は事務所に届けたと言っています。「拾い主から」で確認してください。',
+  'The finder still has the item. Ask them to bring it to the office. They will not see who claimed it.': 'まだ拾い主が持っています。事務所に届けるよう連絡してください。請求した人の名前は拾い主には見えません。',
+  'The finder is no longer a member of your organization.': '拾い主はもう組織のメンバーではありません。',
   // photo: camera or gallery
   'Take photo': '写真を撮る', 'Choose from gallery': 'ギャラリーから選ぶ', 'Remove photo': '写真を削除', 'Retake': '撮り直す', 'Use photo': 'この写真を使う',
   'Switch camera': 'カメラを切り替え', 'Close': '閉じる', 'Use the phone camera app': 'スマホのカメラアプリを使う',

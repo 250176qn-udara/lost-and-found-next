@@ -52,7 +52,7 @@ export async function getBrowseItems(orgId: number, category: string, uid = 0): 
 /** Found items members posted that are still with the finder (not brought to the office yet, not returned). */
 export async function getQueue(orgId: number): Promise<QueueItem[]> {
   const rows = await all<Record<string, unknown>>(
-    `SELECT i.id, i.title, i.category, i.place, i.item_date, i.description, i.handed_in_at, u.name AS reporter_name
+    `SELECT i.id, i.title, i.category, i.place, i.item_date, i.description, i.handed_in_at, u.name AS reporter_name, i.reporter_id
      FROM items i JOIN users u ON u.id = i.reporter_id
      WHERE i.organization_id = ? AND i.kind = 'found' AND i.received_at IS NULL AND i.status < 5
      ORDER BY i.handed_in_at IS NULL, i.handed_in_at, i.created_at`, [orgId]);
@@ -64,6 +64,7 @@ export async function getQueue(orgId: number): Promise<QueueItem[]> {
     date: (r.item_date as string) ?? null,
     description: (r.description as string) ?? null,
     reporterName: String(r.reporter_name),
+    reporterId: Number(r.reporter_id),
     handedInAt: (r.handed_in_at as string) ?? null,
   }));
 }
@@ -75,7 +76,7 @@ export async function getClaimsQueue(orgId: number): Promise<Claim[]> {
             i.description AS found_description,
             c.claimant_id, u.name AS claimant_name,
             IF(COALESCE(up.share_email, 1) = 1, u.email, NULL) AS claimant_email, -- the member may hide it (Account → Privacy)
-            l.description AS lost_description, (i.received_at IS NOT NULL) AS at_office, (i.handed_in_at IS NOT NULL) AS handed_in, (c.pickup_code IS NOT NULL) AS has_code, f.name AS finder_name
+            l.description AS lost_description, (i.received_at IS NOT NULL) AS at_office, (i.handed_in_at IS NOT NULL) AS handed_in, (c.pickup_code IS NOT NULL) AS has_code, f.name AS finder_name, f.id AS finder_id
      FROM claims c
      JOIN items i ON i.id = c.found_item_id
      JOIN users u ON u.id = c.claimant_id
@@ -492,6 +493,27 @@ export type ClaimMessage = { id: number; claimId: number; fromStaff: boolean; se
  * Messages about the given claims, oldest first. They live in the claimant's office conversation (Messages page),
  * tagged with the claimed item, so they show up in both places. Callers make sure the viewer may see these claims.
  */
+/** Per claim: the office's messages with the finder about the claimed item (staff only). Same shape as getClaimMessages. */
+export async function getFinderMessages(claimIds: number[]): Promise<Record<number, ClaimMessage[]>> {
+  const out: Record<number, ClaimMessage[]> = {};
+  if (!claimIds.length) return out;
+  const rows = await all<Record<string, unknown>>(
+    `SELECT m.id, c.id AS claim_id, m.from_staff, m.body, m.created_at, m.read_at, COALESCE(u.name, 'Lost & Found') AS sender_name
+     FROM claims c
+     JOIN items i ON i.id = c.found_item_id
+     JOIN office_messages m ON m.organization_id = i.organization_id AND m.member_id = i.reporter_id AND m.item_id = c.found_item_id
+     LEFT JOIN users u ON u.id = m.sender_id
+     WHERE c.id IN (${claimIds.map(() => '?').join(',')}) AND i.reporter_id <> c.claimant_id ORDER BY m.id`, claimIds);
+  for (const r of rows) {
+    const m: ClaimMessage = {
+      id: Number(r.id), claimId: Number(r.claim_id), fromStaff: Boolean(Number(r.from_staff)), senderName: String(r.sender_name),
+      body: String(r.body), createdAt: String(r.created_at), readAt: s(r.read_at),
+    };
+    (out[m.claimId] ??= []).push(m);
+  }
+  return out;
+}
+
 export async function getClaimMessages(claimIds: number[]): Promise<Record<number, ClaimMessage[]>> {
   const out: Record<number, ClaimMessage[]> = {};
   if (!claimIds.length) return out;

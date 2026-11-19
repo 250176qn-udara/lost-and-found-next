@@ -57,7 +57,7 @@ export function claimRow(r: Record<string, unknown>): Claim {
     pickupCode: r.pickup_code === undefined ? undefined : ((r.pickup_code as string) ?? null),
     shelf: r.shelf === undefined ? undefined : ((r.shelf as string) ?? null),
     decidedAt: r.decided_at === undefined ? undefined : ((r.decided_at as string) ?? null),
-    ...(r.at_office === undefined ? {} : { atOffice: Boolean(Number(r.at_office)), finderName: (r.finder_name as string) ?? null, handedIn: Boolean(Number(r.handed_in)), hasCode: Boolean(Number(r.has_code)) }),
+    ...(r.at_office === undefined ? {} : { atOffice: Boolean(Number(r.at_office)), finderName: (r.finder_name as string) ?? null, finderId: r.finder_id == null ? undefined : Number(r.finder_id), handedIn: Boolean(Number(r.handed_in)), hasCode: Boolean(Number(r.has_code)) }),
   };
 }
 

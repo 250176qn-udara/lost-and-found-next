@@ -72,6 +72,8 @@ export type Claim = {
   /** Staff claim lists only: whether the found item is at the office, and who posted it. */
   atOffice?: boolean;
   finderName?: string | null;
+  /** Staff claim lists: the member who posted the found item (to message them). */
+  finderId?: number;
   handedIn?: boolean;
   /** Staff claim lists: the found item's hidden details (what the owner should be able to describe). */
   foundDescription?: string | null;
@@ -86,6 +88,8 @@ export type Claim = {
 
 export type QueueItem = {
   id: number;
+  /** The member who found it (to message them). */
+  reporterId: number;
   title: string;
   category: string;
   place: string;

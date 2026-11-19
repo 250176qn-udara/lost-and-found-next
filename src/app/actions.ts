@@ -963,6 +963,43 @@ export async function markOfficeRead(memberId: number | null): Promise<void> {
   if (r.affectedRows) refresh();
 }
 
+// ---------- the finder of a claimed item ----------
+
+/** Staff on a claim card talking to the member who found the item (e.g. "the owner needs it, please bring it today").
+ *  The finder only sees "Office" and the item; never who claimed it. */
+async function finderParty(claimId: number) {
+  const { uid, orgId } = await requireStaff();
+  const c = await one<{ status: string; claimant_id: number; organization_id: number; found_item_id: number; reporter_id: number; title: string }>(
+    `SELECT c.status, c.claimant_id, i.organization_id, c.found_item_id, i.reporter_id, i.title
+     FROM claims c JOIN items i ON i.id = c.found_item_id WHERE c.id = ?`, [claimId]);
+  if (!c || c.organization_id !== orgId || c.reporter_id === c.claimant_id) throw new ActionError('Claim not found.');
+  const member = await one(`SELECT id FROM organization_members WHERE user_id = ? AND organization_id = ? AND status = 'approved'`, [c.reporter_id, orgId]);
+  if (!member) throw new ActionError('The finder is no longer a member of your organization.');
+  return { uid, orgId, finderId: c.reporter_id, itemId: c.found_item_id, status: c.status, title: c.title };
+}
+
+export async function sendFinderMessage(claimId: number, rawBody: string): Promise<Result> {
+  return handle(async () => {
+    const p = await finderParty(claimId);
+    const body = rawBody.trim();
+    if (!body) throw new ActionError('Please write a message.');
+    maxLen(body, 1000, 'The message is too long.');
+    if (p.status !== 'pending' && p.status !== 'approved') throw new ActionError('This claim is closed.');
+    // Goes into the finder's Messages conversation with the office, tagged with the item (their reply is tagged too).
+    await postOfficeMessage(p.orgId, p.finderId, p.uid, true, body, p.itemId);
+    await mailChat(p.orgId, p.finderId, p.uid, true, body);
+    refresh();
+    return {};
+  });
+}
+
+/** Staff opened the finder conversation on a claim card: the finder's replies about this item are read. */
+export async function markFinderMessagesRead(claimId: number): Promise<void> {
+  const p = await finderParty(claimId);
+  await exec('UPDATE office_messages SET read_at = NOW() WHERE organization_id = ? AND member_id = ? AND item_id = ? AND from_staff = 0 AND read_at IS NULL',
+    [p.orgId, p.finderId, p.itemId]);
+}
+
 // ---------- questions about a claim ----------
 
 /** Who may talk about a claim: the claimant, or staff/admins of the item's organization. */
